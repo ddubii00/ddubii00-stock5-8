@@ -1265,7 +1265,7 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
                   (maRows ? `<div class="tt-ma-row">${maRows}</div>` : '');
 
                 const cw = priceRef.current?.clientWidth || 400;
-                const tooltipWidth = 168;
+                const tooltipWidth = 180;
                 let lx = param.point.x - tooltipWidth - 14;
                 if (lx < 4) lx = param.point.x + 12;
                 if (lx + tooltipWidth > cw) lx = Math.max(4, cw - tooltipWidth);

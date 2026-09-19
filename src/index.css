@@ -526,7 +526,7 @@ html, body {
   border-radius: 6px;
   padding: 5px 8px;
   box-shadow: 0 5px 14px rgba(0,0,0,0.12);
-  width: 168px;
+  width: 180px;
   font-size: 11px;
   line-height: 1.2;
   backdrop-filter: blur(3px);
@@ -549,7 +549,7 @@ html, body {
   white-space: nowrap;
 }
 .tt-row b { font-weight: 600; }
-.tt-row.tt-change > span { transform: translateX(-11px); }
+.tt-row.tt-change { margin-left: -11px; width: calc(100% + 11px); }
 
 .tt-gray { color: var(--muted); }
 
