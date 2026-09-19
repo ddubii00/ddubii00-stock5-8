@@ -16,6 +16,7 @@ function clean(value) {
     id: String(item.id || '').slice(0, 100), symbol: String(item.symbol || '').slice(0, 30), name: String(item.name || '').slice(0, 100),
     exchange: String(item.exchange || '').slice(0, 30), type: String(item.type || '').slice(0, 30), group: String(item.group || '3. 롱 관심').slice(0, 30),
     memo: String(item.memo || '').slice(0, 100), memoPosition: { x: Math.max(0, Number(item.memoPosition?.x) || 12), y: Math.max(0, Number(item.memoPosition?.y) || 58) },
+    memoSize: { width: Math.min(600, Math.max(120, Number(item.memoSize?.width) || 145)), height: Math.min(400, Math.max(70, Number(item.memoSize?.height) || 78)) },
   })).filter(item => item.id && item.symbol && item.name) : [];
   return { mode: value?.mode === 'KRX2' ? 'KRX2' : 'KRX', items };
 }

@@ -868,7 +868,7 @@ const BASE_OPTS = {
   },
 };
 
-export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode = 'KRX', memo = '', memoPosition = { x: 12, y: 58 }, onMemoChange }) {
+export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode = 'KRX', memo = '', memoPosition = { x: 12, y: 58 }, memoSize = { width: 145, height: 78 }, onMemoChange }) {
   // ① localStorage로 마지막 선택 종목 복원
   const storageKey = `stock5_symbol_${id}`;
   const storedRaw   = localStorage.getItem(storageKey);
@@ -895,6 +895,7 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
   const [advice, setAdvice] = useState({ tone: 'neutral', text: '차트 데이터를 불러오는 중…' });
   const [note, setNote] = useState(memo);
   const [notePos, setNotePos] = useState(memoPosition);
+  const [noteSize, setNoteSize] = useState(memoSize);
   const [loadVersion, setLoadVersion] = useState(0);
   const [mainVisible, setMainVisible] = useState({
     candle: true,
@@ -955,8 +956,12 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
     const start = { x: event.clientX, y: event.clientY, pos: notePos };
     let finalPos = notePos;
     const move = e => { finalPos = { x: Math.max(0, start.pos.x + e.clientX - start.x), y: Math.max(38, start.pos.y + e.clientY - start.y) }; setNotePos(finalPos); };
-    const end = () => { document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', end); onMemoChange?.(note, finalPos); };
+    const end = () => { document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', end); onMemoChange?.(note, finalPos, noteSize); };
     document.addEventListener('mousemove', move); document.addEventListener('mouseup', end);
+  };
+  const saveNoteSize = (event) => {
+    const next = { width: Math.max(120, event.currentTarget.offsetWidth), height: Math.max(70, event.currentTarget.offsetHeight) };
+    setNoteSize(next); onMemoChange?.(note, notePos, next);
   };
 
   // ① 종목 선택 시 localStorage 저장
@@ -2108,7 +2113,7 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
           <div ref={ichiTooltipRef} className="ichi-tooltip" />
         </div>
       </div>
-      <div className="draggable-note" style={{ left: notePos.x, top: notePos.y }}><div className="note-grip" onMouseDown={dragNote}>⋮⋮ 메모 이동</div><textarea maxLength="100" value={note} onChange={e => setNote(e.target.value)} onBlur={() => onMemoChange?.(note, notePos)} placeholder="100자 메모" /></div>
+      <div className="draggable-note" onMouseUp={saveNoteSize} style={{ left: notePos.x, top: notePos.y, width: noteSize.width, height: noteSize.height }}><div className="note-grip" onMouseDown={dragNote}>⋮⋮ 메모 이동 · 오른쪽 아래로 크기 변경</div><textarea maxLength="100" value={note} onChange={e => setNote(e.target.value)} onBlur={() => onMemoChange?.(note, notePos, noteSize)} placeholder="100자 메모" /></div>
 
       {analysisOpen && (
         <div className="analysis-modal-backdrop" role="presentation">
