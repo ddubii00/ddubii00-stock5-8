@@ -549,6 +549,7 @@ html, body {
   white-space: nowrap;
 }
 .tt-row b { font-weight: 600; }
+.tt-row.tt-change > span { transform: translateX(-11px); }
 
 .tt-gray { color: var(--muted); }
 

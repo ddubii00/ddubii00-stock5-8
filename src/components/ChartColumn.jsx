@@ -1260,7 +1260,7 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
                   `<span>종가 <b>${formatPriceLabel(data.close, symbolRef.current)}</b></span>` +
                   `</div>` +
                   (Number.isFinite(changePct)
-                    ? `<div class="tt-row" style="color:${changePctColor}"><span>등락률</span><b>${formatSignedPercent(changePct)}</b></div>`
+                    ? `<div class="tt-row tt-change" style="color:${changePctColor}"><span>등락률</span><b>${formatSignedPercent(changePct)}</b></div>`
                     : '') +
                   (maRows ? `<div class="tt-ma-row">${maRows}</div>` : '');
 
@@ -1553,11 +1553,14 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
   const fetchQuote = useCallback(async (sym, signal) => {
     if (!sym) return;
     const market = marketMode === 'KRX2' && isKoreanSymbol(sym) ? '&market=after' : '';
+    const preferAfterMinute = marketMode === 'KRX2' && isKoreanSymbol(sym) && !isRegularMarketOpen(sym);
     const quoteResponse = await fetch(apiUrl(`/quote?symbol=${encodeURIComponent(sym)}${market}`), { signal });
     const quoteContentType = quoteResponse.headers.get('content-type') || '';
+    let quoteFallback = null;
     if (quoteResponse.ok && quoteContentType.includes('application/json')) {
       const quoteData = await quoteResponse.json();
-      if (Number.isFinite(Number(quoteData?.price))) {
+      quoteFallback = quoteData;
+      if (Number.isFinite(Number(quoteData?.price)) && !preferAfterMinute) {
         setQuote({ ...quoteData, symbol: sym });
         return;
       }
@@ -1567,13 +1570,17 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
     const dailyUrl = apiUrl(`/ohlcv?symbol=${encodeURIComponent(sym)}&interval=day&limit=6`);
     const response = await fetch(dailyUrl, { signal });
     const contentType = response.headers.get('content-type') || '';
-    if (!response.ok || !contentType.includes('application/json')) return;
+    if (!response.ok || !contentType.includes('application/json')) {
+      if (quoteFallback) setQuote({ ...quoteFallback, symbol: sym });
+      return;
+    }
     const data = await response.json();
     const candles = filterDailyTradingCandles(normalizeCandleData(data), sym, { interval: 'day' });
 
     let nextQuote = buildQuoteFromCandles(candles);
-    if (realtimeKorean) {
-      const minuteResponse = await fetch(apiUrl(`/ohlcv?symbol=${encodeURIComponent(sym)}&interval=1m&limit=5`), { signal });
+    if (realtimeKorean || preferAfterMinute) {
+      const afterMarket = preferAfterMinute ? '&market=after' : '';
+      const minuteResponse = await fetch(apiUrl(`/ohlcv?symbol=${encodeURIComponent(sym)}&interval=1m&limit=5${afterMarket}`), { signal });
       const minuteContentType = minuteResponse.headers.get('content-type') || '';
       if (minuteResponse.ok && minuteContentType.includes('application/json')) {
         const minuteData = await minuteResponse.json();
@@ -1584,6 +1591,7 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
     }
 
     if (nextQuote) setQuote({ ...nextQuote, symbol: sym });
+    else if (quoteFallback) setQuote({ ...quoteFallback, symbol: sym });
   }, [marketMode]);
 
   // ─── 메인 3개 차트 데이터 로드 ───────────────────────
