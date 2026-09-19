@@ -311,11 +311,13 @@ function kisHeaders(token, trId) {
   };
 }
 
-async function fetchKisDomesticStockQuote(symbol) {
+async function fetchKisDomesticStockQuote(symbol, market = 'regular') {
   const token = await fetchKisAccessToken();
   if (!token) return null;
   const params = new URLSearchParams({
-    FID_COND_MRKT_DIV_CODE: 'J',
+    // UN is the KIS integrated market: it includes NXT and KRX's 16:00~20:00
+    // after-market execution. J remains the regular KRX view.
+    FID_COND_MRKT_DIV_CODE: market === 'after' ? 'UN' : 'J',
     FID_INPUT_ISCD: cleanKoreanCode(symbol),
   });
   const res = await fetch(`${kisBaseUrl()}/uapi/domestic-stock/v1/quotations/inquire-price?${params}`, {
@@ -444,12 +446,12 @@ async function fetchNaverIndexQuotes() {
   return data;
 }
 
-async function fetchRealtimeQuote(symbol) {
+async function fetchRealtimeQuote(symbol, market = 'regular') {
   const key = String(symbol || '').toUpperCase();
   const realtime = realtimeQuotes.get(realtimeKeyForSymbol(key));
-  if (realtime && Date.now() - realtime.receivedAt < 10_000) return realtime.quote;
+  if (market !== 'after' && realtime && Date.now() - realtime.receivedAt < 10_000) return realtime.quote;
 
-  const kisQuoteKey = `kis-quote:${symbol}`;
+  const kisQuoteKey = `kis-quote:${symbol}:${market}`;
   const now = Date.now();
   const kisCached = quoteCache.get(kisQuoteKey);
   if (kisCached && now - kisCached.ts < REALTIME_QUOTE_TTL_MS) return kisCached.data;
@@ -457,7 +459,7 @@ async function fetchRealtimeQuote(symbol) {
   if (hasKisConfig()) {
     try {
       const kisQuote = isKoreanStockSymbol(symbol)
-        ? await fetchKisDomesticStockQuote(symbol)
+        ? await fetchKisDomesticStockQuote(symbol, market)
         : await fetchKisOverseasStockQuote(symbol);
       if (kisQuote) {
         quoteCache.set(kisQuoteKey, { ts: now, data: kisQuote });
@@ -1053,9 +1055,9 @@ app.get('/api/ohlcv', async (req, res) => {
 
 app.get('/api/quote', async (req, res) => {
   try {
-    const { symbol } = req.query;
+    const { symbol, market = 'regular' } = req.query;
     if (!symbol) return res.status(400).json({ error: 'symbol required' });
-    const quote = await fetchRealtimeQuote(symbol);
+    const quote = await fetchRealtimeQuote(symbol, market === 'after' ? 'after' : 'regular');
     if (!quote) return res.status(404).json({ error: 'quote not found' });
     return res.json(quote);
   } catch (e) {

@@ -169,11 +169,11 @@ function kisHeaders(token, trId) {
   };
 }
 
-async function fetchKisDomesticStockQuote(symbol) {
+async function fetchKisDomesticStockQuote(symbol, market = 'regular') {
   const token = await fetchKisAccessToken();
   if (!token) return null;
   const params = new URLSearchParams({
-    FID_COND_MRKT_DIV_CODE: 'J',
+    FID_COND_MRKT_DIV_CODE: market === 'after' ? 'UN' : 'J',
     FID_INPUT_ISCD: cleanKoreanCode(symbol),
   });
   const res = await fetch(`${kisBaseUrl()}/uapi/domestic-stock/v1/quotations/inquire-price?${params}`, {
@@ -258,9 +258,9 @@ async function fetchNaverIndexQuotes() {
   return data;
 }
 
-export async function fetchRealtimeQuote(symbol) {
+export async function fetchRealtimeQuote(symbol, market = 'regular') {
   const key = String(symbol || '').toUpperCase();
-  const kisQuoteKey = `kis-quote:${symbol}`;
+  const kisQuoteKey = `kis-quote:${symbol}:${market}`;
   const now = Date.now();
   const kisCached = quoteCache.get(kisQuoteKey);
   if (kisCached && now - kisCached.ts < REALTIME_QUOTE_TTL_MS) return kisCached.data;
@@ -268,7 +268,7 @@ export async function fetchRealtimeQuote(symbol) {
   if (hasKisConfig()) {
     try {
       const kisQuote = isKoreanStockSymbol(symbol)
-        ? await fetchKisDomesticStockQuote(symbol)
+        ? await fetchKisDomesticStockQuote(symbol, market)
         : await fetchKisOverseasStockQuote(symbol);
       if (kisQuote) {
         quoteCache.set(kisQuoteKey, { ts: now, data: kisQuote });

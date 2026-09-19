@@ -2,10 +2,10 @@ import { fetchRealtimeQuote } from './_shared.js';
 
 export default async function handler(req, res) {
   try {
-    const { symbol } = req.query;
+    const { symbol, market = 'regular' } = req.query;
     if (!symbol) return res.status(400).json({ error: 'symbol required' });
 
-    const quote = await fetchRealtimeQuote(symbol);
+    const quote = await fetchRealtimeQuote(symbol, market === 'after' ? 'after' : 'regular');
     if (!quote) return res.status(404).json({ error: 'quote not found' });
     return res.json(quote);
   } catch (e) {

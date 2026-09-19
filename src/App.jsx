@@ -7,6 +7,15 @@ import './index.css';
 const GROUPS = ['1. 롱 보유', '2. 숏 보유', '3. 롱 관심', '4. 숏 관심'];
 const DEFAULT_STATE = { mode: 'KRX', items: [] };
 const signed = (v, suffix = '') => Number.isFinite(Number(v)) ? `${Number(v) > 0 ? '+' : ''}${Number(v).toLocaleString('ko-KR', { maximumFractionDigits: 2 })}${suffix}` : '-';
+const MARKET_TILES = [
+  { key: 'kospi', label: 'KOSPI', symbol: '^KS11' }, { key: 'kosdaq', label: 'KOSDAQ', symbol: '^KQ11' },
+  { key: 'usdKrw', label: '환율', symbol: 'KRW=X' }, { key: 'nasdaq', label: '나스닥', symbol: '^IXIC' },
+];
+
+function MarketTicker({ label, quote }) {
+  const tone = Number(quote?.change) > 0 ? 'up' : Number(quote?.change) < 0 ? 'down' : '';
+  return <span className={`market-item ${tone}`}><span>{label}</span><strong className="market-price">{quote ? signed(quote.price) : '-'}</strong><span className="market-change">{quote && Number.isFinite(Number(quote.changePct)) ? `(${signed(quote.changePct, '%')})` : ''}</span></span>;
+}
 
 function Login({ onLogin }) {
   const [password, setPassword] = useState(''); const [error, setError] = useState('');
@@ -23,12 +32,17 @@ function WatchlistModal({ state, onChange, onClose }) {
 }
 
 export default function App() {
-  const [password, setPassword] = useState(''); const [state, setState] = useState(null); const [modal, setModal] = useState(false); const [saving, setSaving] = useState(false);
+  const [password, setPassword] = useState(''); const [state, setState] = useState(null); const [modal, setModal] = useState(false); const [saving, setSaving] = useState(false); const [marketSummary, setMarketSummary] = useState({});
   const clearAuthentication = useCallback(() => { localStorage.removeItem('stock5-8-password'); setPassword(''); setState(null); }, []);
   const save = useCallback(async next => { setState(next); setSaving(true); try { const response = await fetch(apiUrl('/state'), { method: 'PUT', headers: { 'Content-Type': 'application/json', 'x-stock5-password': password }, body: JSON.stringify(next) }); if (response.status === 401) clearAuthentication(); else if (!response.ok) throw new Error('공유 저장에 실패했습니다.'); } finally { setSaving(false); } }, [password, clearAuthentication]);
   const login = (pw, initial) => { setPassword(pw); setState({ ...DEFAULT_STATE, ...initial, items: initial.items || [] }); };
   useEffect(() => { const pw = localStorage.getItem('stock5-8-password'); if (pw) fetch(apiUrl('/state'), { headers: { 'x-stock5-password': pw } }).then(r => r.ok ? r.json() : Promise.reject()).then(data => login(pw, data)).catch(clearAuthentication); }, [clearAuthentication]);
+  const refreshMarketSummary = useCallback(() => Promise.all(MARKET_TILES.map(async ({ key, symbol }) => {
+    const response = await fetch(apiUrl(`/quote?symbol=${encodeURIComponent(symbol)}`));
+    return [key, response.ok ? await response.json() : null];
+  })).then(entries => setMarketSummary(current => ({ ...current, ...Object.fromEntries(entries.filter(([, quote]) => quote)) }))).catch(() => {}), []);
+  useEffect(() => { if (!state) return undefined; refreshMarketSummary(); const timer = setInterval(refreshMarketSummary, 10_000); return () => clearInterval(timer); }, [state, refreshMarketSummary]);
   if (!state) return <Login onLogin={login} />;
   const ordered = GROUPS.flatMap(group => state.items.filter(item => item.group === group));
-  return <div className="app"><header className="app-header"><strong className="app-title">stock5-8</strong><div className="header-actions"><button className={state.mode === 'KRX' ? 'active' : ''} onClick={() => save({ ...state, mode: 'KRX' })}>KRX</button><button className={state.mode === 'KRX2' ? 'active' : ''} onClick={() => save({ ...state, mode: 'KRX2' })}>KRX 장후</button><button onClick={() => setModal(true)}>종목</button><span className="save-state">{saving ? '저장 중…' : '공유 저장됨'}</span></div></header>{ordered.length ? <div className="dashboard-grid watch-dashboard">{ordered.map(item => <div className="watch-chart" key={item.id}><div className="watch-category">{item.group}</div><ChartColumn id={`watch-${item.id}`} defaultSymbol={item.symbol} defaultName={item.name} marketMode={state.mode} memo={item.memo} memoPosition={item.memoPosition} memoSize={item.memoSize} onMemoChange={(memo, memoPosition, memoSize) => save({ ...state, items: state.items.map(row => row.id === item.id ? { ...row, memo, memoPosition, memoSize } : row) })} /></div>)}</div> : <main className="empty-state"><h2>관심 종목을 추가하세요</h2><p>상단의 ‘종목’ 버튼에서 카테고리를 고르고 종목·지수를 검색할 수 있습니다.</p><button onClick={() => setModal(true)}>종목 추가</button></main>}{modal && <WatchlistModal state={state} onChange={save} onClose={() => setModal(false)} />}</div>;
+  return <div className="app"><header className="app-header"><strong className="app-title">stock5-8</strong><div className="market-summary" aria-label="시장 실시간 시세">{MARKET_TILES.map(tile => <MarketTicker key={tile.key} label={tile.label} quote={marketSummary[tile.key]} />)}</div><div className="header-actions"><button className={state.mode === 'KRX' ? 'active' : ''} onClick={() => save({ ...state, mode: 'KRX' })}>KRX</button><button className={state.mode === 'KRX2' ? 'active' : ''} onClick={() => save({ ...state, mode: 'KRX2' })}>KRX 장후</button><button onClick={() => setModal(true)}>종목</button><span className="save-state">{saving ? '저장 중…' : '공유 저장됨'}</span></div></header>{ordered.length ? <div className="dashboard-grid watch-dashboard">{ordered.map(item => <div className="watch-chart" key={item.id}><div className="watch-category">{item.group}</div><ChartColumn id={`watch-${item.id}`} defaultSymbol={item.symbol} defaultName={item.name} marketMode={state.mode} memo={item.memo} memoPosition={item.memoPosition} memoSize={item.memoSize} onMemoChange={(memo, memoPosition, memoSize) => save({ ...state, items: state.items.map(row => row.id === item.id ? { ...row, memo, memoPosition, memoSize } : row) })} /></div>)}</div> : <main className="empty-state"><h2>관심 종목을 추가하세요</h2><p>상단의 ‘종목’ 버튼에서 카테고리를 고르고 종목·지수를 검색할 수 있습니다.</p><button onClick={() => setModal(true)}>종목 추가</button></main>}{modal && <WatchlistModal state={state} onChange={save} onClose={() => setModal(false)} />}</div>;
 }

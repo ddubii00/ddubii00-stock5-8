@@ -1538,7 +1538,8 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
 
   const fetchQuote = useCallback(async (sym, signal) => {
     if (!sym) return;
-    const quoteResponse = await fetch(apiUrl(`/quote?symbol=${encodeURIComponent(sym)}`), { signal });
+    const market = marketMode === 'KRX2' && isKoreanSymbol(sym) ? '&market=after' : '';
+    const quoteResponse = await fetch(apiUrl(`/quote?symbol=${encodeURIComponent(sym)}${market}`), { signal });
     const quoteContentType = quoteResponse.headers.get('content-type') || '';
     if (quoteResponse.ok && quoteContentType.includes('application/json')) {
       const quoteData = await quoteResponse.json();
