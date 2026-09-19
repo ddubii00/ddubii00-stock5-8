@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { apiUrl } from '../api';
 
 export default function StockSearch({ onSelect, placeholder }) {
   const [query, setQuery] = useState('');
@@ -29,7 +30,7 @@ export default function StockSearch({ onSelect, placeholder }) {
     }
     setLoading(true);
     try {
-      const res = await fetch(`/api/search?q=${encodeURIComponent(q.trim())}`);
+      const res = await fetch(apiUrl(`/search?q=${encodeURIComponent(q.trim())}`));
       const contentType = res.headers.get('content-type') || '';
       if (!res.ok) {
         const body = contentType.includes('application/json') ? await res.json().catch(() => null) : await res.text();
