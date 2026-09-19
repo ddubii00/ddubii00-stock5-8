@@ -53,12 +53,14 @@ function requestLimit(tf, baseLimit) {
     const buffer = 1200;
     return Math.min(Math.max(baseLimit + buffer, baseLimit * 4, 240), 2000);
   }
+  if (tf?.interval === 'week') return Math.min(Math.max(baseLimit + 160, baseLimit * 2), 400);
   const buffer = 720;
   return Math.min(Math.max(baseLimit + buffer, baseLimit * 4), 2000);
 }
 
 function ichimokuRequestLimit(tf, baseLimit) {
   const minHistory = baseLimit + 52 + ICHIMOKU_DISPLACEMENT * 2;
+  if (tf?.interval === 'week') return Math.min(Math.max(minHistory + 40, baseLimit * 2), 400);
   if (!isIntradayTf(tf)) return Math.min(Math.max(minHistory + 360, baseLimit * 5), 2000);
   return Math.min(Math.max(minHistory + 1800, baseLimit * 12), 2000);
 }
@@ -898,6 +900,7 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
   const [chartsReady, setChartsReady] = useState(false);
   const [advice, setAdvice] = useState({ tone: 'neutral', text: '차트 데이터를 불러오는 중…' });
   const [note, setNote] = useState(memo);
+  const [noteOpen, setNoteOpen] = useState(true);
   const [notePos, setNotePos] = useState(memoPosition);
   const [noteSize, setNoteSize] = useState(memoSize);
   const [loadVersion, setLoadVersion] = useState(0);
@@ -2002,6 +2005,7 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
               </span>
             )}
             {loading && <span className="loading-dot">●</span>}
+            <button type="button" className="memo-toggle-btn" onClick={() => setNoteOpen(true)}>메모</button>
           </div>
         )}
         {error && <div className="error-bar">{error}</div>}
@@ -2148,7 +2152,7 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
           <div ref={ichiTooltipRef} className="ichi-tooltip" />
         </div>
       </div>
-      <div className="draggable-note" onMouseUp={saveNoteSize} style={{ left: notePos.x, top: notePos.y, width: noteSize.width, height: noteSize.height }}><div className="note-grip" onMouseDown={dragNote} aria-label="메모 이동">⋮⋮</div><textarea maxLength="100" value={note} onChange={e => setNote(e.target.value)} onBlur={() => onMemoChange?.(note, notePos, noteSize)} placeholder="100자 메모" /></div>
+      {noteOpen && <div className="draggable-note" onMouseUp={saveNoteSize} style={{ left: notePos.x, top: notePos.y, width: noteSize.width, height: noteSize.height }}><div className="note-grip" onMouseDown={dragNote} aria-label="메모 이동">⋮⋮<button type="button" className="note-close-btn" onMouseDown={event => event.stopPropagation()} onClick={() => setNoteOpen(false)} aria-label="메모 숨기기">×</button></div><textarea maxLength="100" value={note} onChange={e => setNote(e.target.value)} onBlur={() => onMemoChange?.(note, notePos, noteSize)} placeholder="100자 메모" /></div>}
 
       {analysisOpen && (
         <div className="analysis-modal-backdrop" role="presentation">

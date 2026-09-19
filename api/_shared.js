@@ -503,7 +503,8 @@ export async function fetchUsOhlcv(symbol, interval, limit) {
   const daysPerBar = { '1m': 1 / 390, '3m': 5 / 390, '5m': 5 / 390, '15m': 15 / 390,
     '30m': 0.1, '60m': 0.2, '1h': 0.2, day: 1, week: 7, month: 30 };
   const daysPer = daysPerBar[interval] || 1;
-  const daysBack = Math.ceil(limit * daysPer * 2.5) + 2;
+  const historyMultiplier = interval === 'week' ? 1.4 : 2.5;
+  const daysBack = Math.ceil(limit * daysPer * historyMultiplier) + 14;
   const maxDays = { '1m': 7, '3m': 14, '5m': 59, '15m': 59, '30m': 59, '60m': 59, '1h': 59 };
   const actualDays = Math.min(daysBack, maxDays[interval] || daysBack);
   const period1 = new Date(Date.now() - actualDays * 24 * 3600000).toISOString().slice(0, 10);
