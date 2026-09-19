@@ -124,24 +124,25 @@ function marketStateLabel(symbol, marketMode) {
 }
 
 function buildTradingAdvice(candles) {
-  if (!candles || candles.length < 62) return { tone: 'neutral', text: '신호 계산에 필요한 일봉 데이터가 부족합니다.' };
-  const last = candles.at(-1); const prev = candles.at(-2);
-  const ma5 = calculateMA(candles, 5); const ma20 = calculateMA(candles, 20); const ma60 = calculateMA(candles, 60);
+  if (!candles || candles.length < 62) return { tone: 'neutral', text: '신호 없음 — 일봉 데이터가 부족합니다.' };
+  const last = candles.at(-1);
+  const ma5 = calculateMA(candles, 5); const ma20 = calculateMA(candles, 20);
   const macd = calculateMACD(candles); const ichi = calculateIchimoku(candles);
-  const val = (rows, index) => Number(rows.at(index)?.value); const m = macd.at(-1); const pm = macd.at(-2); const ic = ichi.at(-1); const pic = ichi.at(-2);
+  const val = (rows, index) => Number(rows.at(index)?.value); const m = macd.at(-1); const ic = ichi.at(-1);
   const sell = []; const buy = [];
-  if (Number.isFinite(m?.macd) && Number.isFinite(m?.signal) && Number.isFinite(pm?.macd) && pm.macd >= pm.signal && m.macd < m.signal) sell.push(['A군 MACD 하향', 5]);
-  if (Number.isFinite(m?.macd) && Number.isFinite(m?.signal) && Number.isFinite(pm?.macd) && pm.macd <= pm.signal && m.macd > m.signal) buy.push(["A'군 MACD 상향", 5]);
-  if (last.close < val(ma5, -1) && prev.close >= val(ma5, -2)) sell.push(['B군 5일선 이탈', 10]);
-  if (last.close > val(ma5, -1) && prev.close <= val(ma5, -2)) buy.push(["B'군 5일선 회복", 10]);
-  if (val(ma5, -1) < val(ma20, -1) && val(ma5, -2) >= val(ma20, -2)) sell.push(['C군 5/20 데드크로스', 15]);
-  if (val(ma5, -1) > val(ma20, -1) && val(ma5, -2) <= val(ma20, -2)) buy.push(["C'군 5/20 골든크로스", 15]);
-  if (Number.isFinite(ic?.kijun) && Number.isFinite(pic?.kijun) && last.close < ic.kijun && prev.close >= pic.kijun) sell.push(['E군 기준선 하향', 5]);
-  if (Number.isFinite(ic?.kijun) && Number.isFinite(pic?.kijun) && last.close > ic.kijun && prev.close <= pic.kijun) buy.push(["E'군 기준선 회복", 5]);
-  const trendUp = last.close > val(ma60, -1); const selected = sell.length ? sell : buy;
-  if (!selected.length) return { tone: 'neutral', text: `${trendUp ? '상승 추세 유지' : '하락/반전 국면'} — 신규 확정 신호 없음, 다음 종가 확인` };
-  const [name, percent] = selected[0]; const isSell = sell.length > 0;
-  return { tone: isSell ? 'sell' : 'buy', text: `${isSell ? '부분매도' : '분할매수'} 참고 ${percent}% · ${name}${selected.length > 1 ? ` 외 ${selected.length - 1}개` : ''} (같은 그룹은 1회만)` };
+  if (Number.isFinite(m?.macd) && Number.isFinite(m?.signal) && m.macd < m.signal) sell.push(['A군 MACD 약세', 5]);
+  if (Number.isFinite(m?.macd) && Number.isFinite(m?.signal) && m.macd > m.signal) buy.push(["A'군 MACD 강세", 5]);
+  if (last.close < val(ma5, -1)) sell.push(['B군 종가 5일선 하회', 10]);
+  if (last.close > val(ma5, -1)) buy.push(["B'군 종가 5일선 상회", 10]);
+  if (val(ma5, -1) < val(ma20, -1)) sell.push(['C군 5일선이 20일선 아래', 15]);
+  if (val(ma5, -1) > val(ma20, -1)) buy.push(["C'군 5일선이 20일선 위", 15]);
+  if (Number.isFinite(ic?.kijun) && last.close < ic.kijun) sell.push(['E군 종가 기준선 하회', 5]);
+  if (Number.isFinite(ic?.kijun) && last.close > ic.kijun) buy.push(["E'군 종가 기준선 상회", 5]);
+  const selected = sell.length ? sell : buy;
+  if (!selected.length) return { tone: 'neutral', text: '신호 없음 — 오늘 일봉 종가 기준' };
+  const percent = selected.reduce((sum, [, value]) => sum + value, 0);
+  const isSell = sell.length > 0;
+  return { tone: isSell ? 'sell' : 'buy', text: `${isSell ? '부분매도' : '분할매수'} ${percent}% · 오늘 종가: ${selected.map(([name]) => name).join(' / ')}` };
 }
 
 function formatNumberNoDecimals(value) {
@@ -952,6 +953,7 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
   const syncLock    = useRef(false);
   const xhairLock   = useRef(false);
   const inited      = useRef(false);
+  const adviceDailySymbolRef = useRef('');
 
   const dragNote = (event) => {
     const start = { x: event.clientX, y: event.clientY, pos: notePos };
@@ -1593,7 +1595,20 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
     // ② null 값 필터링
     const candles = normalizeCandleData(data);
     if (!candles.length) throw new Error('시세 데이터가 비어 있습니다.');
-    setAdvice(buildTradingAdvice(candles));
+    if (tf.interval === 'day') {
+      adviceDailySymbolRef.current = sym;
+      setTimeout(() => setAdvice(buildTradingAdvice(candles)), 0);
+    } else if (adviceDailySymbolRef.current !== sym) {
+      let dailyCandles = candles;
+      try {
+        const dailyResponse = await fetch(apiUrl(`/ohlcv?symbol=${encodeURIComponent(sym)}&interval=day&limit=130`));
+        if (dailyResponse.ok) dailyCandles = normalizeCandleData(await dailyResponse.json());
+      } catch {
+        // The visible chart remains usable even when the additional daily request fails.
+      }
+      adviceDailySymbolRef.current = sym;
+      setTimeout(() => setAdvice(buildTradingAdvice(dailyCandles)), 0);
+    }
     crosshairValueMapsRef.current = { candle: new Map(), volume: new Map(), macd: new Map() };
     mainCandlesRef.current = candles;
     ser.current.candle.setData(candles);
@@ -2115,7 +2130,7 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
           <div ref={ichiTooltipRef} className="ichi-tooltip" />
         </div>
       </div>
-      <div className="draggable-note" onMouseUp={saveNoteSize} style={{ left: notePos.x, top: notePos.y, width: noteSize.width, height: noteSize.height }}><div className="note-grip" onMouseDown={dragNote}>⋮⋮ 메모 이동 · 오른쪽 아래로 크기 변경</div><textarea maxLength="100" value={note} onChange={e => setNote(e.target.value)} onBlur={() => onMemoChange?.(note, notePos, noteSize)} placeholder="100자 메모" /></div>
+      <div className="draggable-note" onMouseUp={saveNoteSize} style={{ left: notePos.x, top: notePos.y, width: noteSize.width, height: noteSize.height }}><div className="note-grip" onMouseDown={dragNote} aria-label="메모 이동">⋮⋮</div><textarea maxLength="100" value={note} onChange={e => setNote(e.target.value)} onBlur={() => onMemoChange?.(note, notePos, noteSize)} placeholder="100자 메모" /></div>
 
       {analysisOpen && (
         <div className="analysis-modal-backdrop" role="presentation">
