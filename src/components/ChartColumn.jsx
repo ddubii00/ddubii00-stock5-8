@@ -904,6 +904,7 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
   const [notePos, setNotePos] = useState(memoPosition);
   const [noteSize, setNoteSize] = useState(memoSize);
   const [loadVersion, setLoadVersion] = useState(0);
+  const [ichiLoadVersion, setIchiLoadVersion] = useState(0);
   const [mainVisible, setMainVisible] = useState({
     candle: true,
     ma5: true,
@@ -954,6 +955,7 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
   const timeZoneRef = useRef(symbolTimeZone(symbol));
   const mainViewKeyRef = useRef('');
   const ichiViewKeyRef = useRef('');
+  const ichiRequestSeqRef = useRef(0);
   const cloudCanvas = useRef(null);
   const syncLock    = useRef(false);
   const xhairLock   = useRef(false);
@@ -1687,9 +1689,9 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
     });
   }, [drawMacdBackground]);
 
-  const fetchIchi = useCallback(async (sym, tf, lim) => {
+  const fetchIchi = useCallback(async (sym, tf, lim, { signal, requestSeq } = {}) => {
     if (!sym || !ser.current.ichiCandle) return;
-    const r    = await fetch(apiUrl(`/ohlcv?symbol=${encodeURIComponent(sym)}&interval=${tf.interval}&limit=${ichimokuRequestLimit(tf, lim)}`));
+    const r    = await fetch(apiUrl(`/ohlcv?symbol=${encodeURIComponent(sym)}&interval=${tf.interval}&limit=${ichimokuRequestLimit(tf, lim)}`), { signal });
     const contentType = r.headers.get('content-type') || '';
     if (!r.ok) {
       const body = contentType.includes('application/json') ? await r.json().catch(() => null) : await r.text();
@@ -1699,6 +1701,7 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
       throw new Error('시세 API가 JSON 대신 HTML을 반환했습니다. 배포 API 연결을 확인하세요.');
     }
     const data = await r.json();
+    if (signal?.aborted || (requestSeq != null && requestSeq !== ichiRequestSeqRef.current)) return;
     if (!Array.isArray(data) || !data.length) {
       ser.current.ichiCandle.setData([]);
       ser.current.tenkan.setData([]);
@@ -1802,9 +1805,31 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
 
   // 일목균형표는 아래쪽 일목 봉 버튼과 기간이 바뀔 때만 다시 로드
   useEffect(() => {
-    if (!symbol) return;
-    fetchIchi(symbol, ichiTf, ichiLimit).catch(() => {});
-  }, [symbol, ichiTf, ichiLimit, loadVersion, fetchIchi]);
+    if (!symbol) return undefined;
+    const controller = new AbortController();
+    const requestSeq = ++ichiRequestSeqRef.current;
+    fetchIchi(symbol, ichiTf, ichiLimit, { signal: controller.signal, requestSeq }).catch(error => {
+      if (error.name !== 'AbortError') setError(`일목균형표: ${error.message}`);
+    });
+    return () => controller.abort();
+  }, [symbol, ichiTf, ichiLimit, loadVersion, ichiLoadVersion, fetchIchi]);
+
+  // The first weekly switch should hit warm server data instead of waiting for
+  // the upstream provider. This runs after the initial charts are ready and is
+  // cancelled when the card changes symbol or unmounts.
+  useEffect(() => {
+    if (!symbol || !chartsReady) return undefined;
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      fetch(apiUrl(`/ohlcv?symbol=${encodeURIComponent(symbol)}&interval=week&limit=300`), {
+        signal: controller.signal,
+      }).catch(() => {});
+    }, 500);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [symbol, chartsReady]);
 
   useEffect(() => {
     if (!charts.current.price) return;
@@ -1891,12 +1916,19 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
   useEffect(() => {
     if (!symbol || !chartsReady) return;
     const isIntra = INTRA_INTERVALS.includes(ichiTf.interval);
-    const ms = isIntra ? (isKoreanSymbol(symbol) ? 1000 : 3000) : 5000;
+    const ms = isIntra ? (isKoreanSymbol(symbol) ? 1000 : 3000) : ichiTf.interval === 'day' ? 10_000 : 60_000;
+    const controller = new AbortController();
     const t = setInterval(() => {
       const afterHours = marketMode === 'KRX2' && isKoreanSymbol(symbol) && !isRegularMarketOpen(symbol);
-      if (isMarketUpdateWindow(symbol, marketMode) && !afterHours) fetchIchi(symbol, ichiTf, ichiLimit).catch(() => {});
+      if (isMarketUpdateWindow(symbol, marketMode) && !afterHours) {
+        const requestSeq = ++ichiRequestSeqRef.current;
+        fetchIchi(symbol, ichiTf, ichiLimit, { signal: controller.signal, requestSeq }).catch(() => {});
+      }
     }, ms);
-    return () => clearInterval(t);
+    return () => {
+      clearInterval(t);
+      controller.abort();
+    };
   }, [symbol, ichiTf, ichiLimit, chartsReady, fetchIchi, marketMode]);
 
   const applyLimit = () => {
@@ -1912,6 +1944,14 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
     setError('');
     setLoading(true);
     setMainTf(tf);
+  };
+
+  const changeIchiTf = (tf) => {
+    ichiRequestSeqRef.current += 1;
+    ichiViewKeyRef.current = '';
+    setError('');
+    if (tf.interval === ichiTf.interval) setIchiLoadVersion(version => version + 1);
+    else setIchiTf(tf);
   };
 
   const applyIchiLimit = () => {
@@ -2104,7 +2144,7 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
             {ICHI_TFS.map(tf => (
               <button key={tf.label}
                 className={`tf-btn${ichiTf.label === tf.label ? ' active' : ''}`}
-                onClick={() => setIchiTf(tf)}>
+                onClick={() => changeIchiTf(tf)}>
                 {tf.label}
               </button>
             ))}
