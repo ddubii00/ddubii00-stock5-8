@@ -29,6 +29,12 @@ app.all('/api/state', async (req, res) => {
 
 let krxCache = { loadedAt: 0, items: [] };
 const ohlcvCache = new Map();
+// Chart and Ichimoku request different lengths of weekly history. Keep one
+// canonical source response so switching/overlaying them does not refetch it.
+const weeklyOhlcvCache = new Map();
+const weeklyOhlcvInFlight = new Map();
+const WEEKLY_OHLCV_CACHE_TTL_MS = 30 * 60 * 1000;
+const WEEKLY_OHLCV_SOURCE_BARS = 300;
 const quoteCache = new Map();
 let kisTokenCache = { token: '', expiresAt: 0 };
 let kisApprovalCache = { key: '', expiresAt: 0 };
@@ -926,11 +932,18 @@ async function fetchKoreanMinuteOhlcv(code, interval, limit) {
 }
 
 async function fetchUsOhlcv(symbol, interval, limit) {
-  const cacheKey = `${symbol}:${interval}:${limit}`;
   const now = Date.now();
+  const weeklyKey = interval === 'week' ? symbol : null;
+  const weeklyCached = weeklyKey ? weeklyOhlcvCache.get(weeklyKey) : null;
+  if (weeklyCached && now - weeklyCached.ts < WEEKLY_OHLCV_CACHE_TTL_MS && weeklyCached.data.length >= limit) {
+    return weeklyCached.data.slice(-limit);
+  }
+
+  const sourceLimit = weeklyKey ? Math.max(limit, WEEKLY_OHLCV_SOURCE_BARS) : limit;
+  const cacheKey = `${symbol}:${interval}:${sourceLimit}`;
   const cached = ohlcvCache.get(cacheKey);
   const ttl = interval === 'day' ? 3000 : KRX_INTRADAY_MINUTES[interval] ? KRX_MINUTE_TTL_MS : ['week', 'month'].includes(interval) ? 3600000 : 300000;
-  if (cached && now - cached.ts < ttl) return cached.data;
+  if (cached && now - cached.ts < ttl) return weeklyKey ? cached.data.slice(-limit) : cached.data;
 
   const intervalMap = {
     '1m': '1m', '3m': '5m', '5m': '5m', '10m': '10m',
@@ -943,7 +956,7 @@ async function fetchUsOhlcv(symbol, interval, limit) {
   // Weekly data already arrives as complete bars; 1.4x covers holidays and
   // indicator history without fetching decades of unnecessary daily history.
   const historyMultiplier = interval === 'week' ? 1.4 : 2.5;
-  const daysBack = Math.ceil(limit * daysPer * historyMultiplier) + 14;
+  const daysBack = Math.ceil(sourceLimit * daysPer * historyMultiplier) + 14;
   const maxDays = { '1m': 7, '3m': 14, '5m': 59, '15m': 59, '30m': 59, '60m': 59, '1h': 59 };
   const actualDays = Math.min(daysBack, maxDays[interval] || daysBack);
   const period1 = new Date(Date.now() - actualDays * 24 * 3600000).toISOString().slice(0, 10);
@@ -956,7 +969,22 @@ async function fetchUsOhlcv(symbol, interval, limit) {
 
   let result;
   try {
-    result = await yahooFinance.chart(symbol, { period1, interval: yInterval });
+    if (weeklyKey) {
+      const pending = weeklyOhlcvInFlight.get(weeklyKey);
+      if (pending) {
+        result = await pending;
+      } else {
+        const request = yahooFinance.chart(symbol, { period1, interval: yInterval });
+        weeklyOhlcvInFlight.set(weeklyKey, request);
+        try {
+          result = await request;
+        } finally {
+          weeklyOhlcvInFlight.delete(weeklyKey);
+        }
+      }
+    } else {
+      result = await yahooFinance.chart(symbol, { period1, interval: yInterval });
+    }
   } catch (e) {
     if (['1m', '3m', '5m', '15m', '30m', '60m', '1h'].includes(interval)) {
       const fallbackInterval = fallbackIntervalFor(interval);
@@ -971,12 +999,16 @@ async function fetchUsOhlcv(symbol, interval, limit) {
       return { time, open: q.open ?? null, high: q.high ?? null, low: q.low ?? null, close: q.close ?? null, volume: q.volume ?? null };
     })
     .filter(x => x.open !== null && x.close !== null && x.high !== null && x.low !== null)
-    .slice(-limit);
+    .slice(-sourceLimit);
 
   if (!quotes.length && ['1m', '3m', '5m', '15m', '30m', '60m', '1h'].includes(interval)) {
     return fetchUsOhlcv(symbol, fallbackIntervalFor(interval), limit);
   }
 
+  if (weeklyKey) {
+    weeklyOhlcvCache.set(weeklyKey, { ts: now, data: quotes });
+    return quotes.slice(-limit);
+  }
   ohlcvCache.set(cacheKey, { ts: now, data: quotes });
   return quotes;
 }
