@@ -1375,7 +1375,7 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
         spanB: new Map(),
       };
     };
-  }, [drawMacdBackground]);
+  }, [drawMacdBackground, marketMode]);
 
   // ─── Ichimoku cloud ──────────────────────────────────
   const drawCloud = useCallback((spanAData, spanBData) => {
@@ -1590,7 +1590,8 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
   const fetchMain = useCallback(async (sym, tf, lim, { followLatest = false } = {}) => {
     if (!sym || !ser.current.candle) return;
     const viewKey = `${sym}:${tf.interval}:${lim}`;
-    const r    = await fetch(apiUrl(`/ohlcv?symbol=${encodeURIComponent(sym)}&interval=${tf.interval}&limit=${requestLimit(tf, lim)}`));
+    const market = marketMode === 'KRX2' && isKoreanSymbol(sym) && isIntradayTf(tf) ? '&market=after' : '';
+    const r    = await fetch(apiUrl(`/ohlcv?symbol=${encodeURIComponent(sym)}&interval=${tf.interval}&limit=${requestLimit(tf, lim)}${market}`));
     const contentType = r.headers.get('content-type') || '';
     if (!r.ok) {
       const body = contentType.includes('application/json') ? await r.json().catch(() => null) : await r.text();
@@ -1687,11 +1688,12 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
       }
       drawMacdBackground();
     });
-  }, [drawMacdBackground]);
+  }, [drawMacdBackground, marketMode]);
 
   const fetchIchi = useCallback(async (sym, tf, lim, { signal, requestSeq } = {}) => {
     if (!sym || !ser.current.ichiCandle) return;
-    const r    = await fetch(apiUrl(`/ohlcv?symbol=${encodeURIComponent(sym)}&interval=${tf.interval}&limit=${ichimokuRequestLimit(tf, lim)}`), { signal });
+    const market = marketMode === 'KRX2' && isKoreanSymbol(sym) && isIntradayTf(tf) ? '&market=after' : '';
+    const r    = await fetch(apiUrl(`/ohlcv?symbol=${encodeURIComponent(sym)}&interval=${tf.interval}&limit=${ichimokuRequestLimit(tf, lim)}${market}`), { signal });
     const contentType = r.headers.get('content-type') || '';
     if (!r.ok) {
       const body = contentType.includes('application/json') ? await r.json().catch(() => null) : await r.text();
@@ -1783,7 +1785,7 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
       }
       drawCloud(spanAData, spanBData);
     });
-  }, [drawCloud, ichiLimit]);
+  }, [drawCloud, ichiLimit, marketMode]);
 
   // 메인 캔들/거래량/MACD는 위쪽 봉 버튼과 기간만 바뀔 때 다시 로드
   useEffect(() => {
@@ -1940,10 +1942,15 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
   };
 
   const changeMainTf = (tf) => {
+    const defaults = { '1m': 400, '3m': 200, '5m': 120, '15m': 100, '30m': 100, '60m': 100 };
     mainViewKeyRef.current = '';
     setError('');
     setLoading(true);
     setMainTf(tf);
+    if (defaults[tf.interval]) {
+      setLimit(defaults[tf.interval]);
+      setLimitInput(String(defaults[tf.interval]));
+    }
   };
 
   const changeIchiTf = (tf) => {
@@ -2116,7 +2123,7 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
 
       {/* 차트 영역 */}
       <div className="charts-area">
-        <div className={`signal-advice ${advice.tone}`}>신호 시스템: {advice.text}</div>
+        <div className={`signal-advice ${advice.tone}`}>{advice.text}</div>
         <div ref={priceSectionRef} className="chart-section" style={{ position: 'relative' }}>
           <div className="chart-label">캔들차트</div>
           <div ref={priceRef} />

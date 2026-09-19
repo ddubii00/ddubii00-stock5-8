@@ -2,7 +2,7 @@ import { fetchKoreanOhlcv, fetchUsOhlcv } from './_shared.js';
 
 export default async function handler(req, res) {
   try {
-    const { symbol, interval = 'day', limit = 300 } = req.query;
+    const { symbol, interval = 'day', limit = 300, market = 'regular' } = req.query;
     if (!symbol) return res.status(400).json({ error: 'symbol required' });
 
     const lim = Math.min(Number(limit) || 300, 2000);
@@ -15,13 +15,13 @@ export default async function handler(req, res) {
     if (isIndex) {
       data = await fetchUsOhlcv(symbol, interval, lim);
     } else if (isKorean && interval === 'day') {
-      data = await fetchKoreanOhlcv(code, interval, lim);
+      data = await fetchKoreanOhlcv(code, interval, lim, { market });
       data = data.map(x => ({
         ...x,
         time: x.date ? x.date.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3') : x.time,
       }));
     } else if (isKorean) {
-      data = await fetchKoreanOhlcv(code, interval, lim);
+      data = await fetchKoreanOhlcv(code, interval, lim, { market });
     } else {
       data = await fetchUsOhlcv(symbol, interval, lim);
     }

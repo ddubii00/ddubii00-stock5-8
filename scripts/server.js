@@ -35,6 +35,11 @@ const weeklyOhlcvCache = new Map();
 const weeklyOhlcvInFlight = new Map();
 const WEEKLY_OHLCV_CACHE_TTL_MS = 30 * 60 * 1000;
 const WEEKLY_OHLCV_SOURCE_BARS = 300;
+const koreanDailyHistoryCache = new Map();
+const koreanDailyHistoryInFlight = new Map();
+const koreanOhlcvLogAt = new Map();
+const KIS_HISTORY_PAGE_DAYS = 180;
+const KIS_HISTORY_MAX_PAGES = 32;
 const quoteCache = new Map();
 let kisTokenCache = { token: '', expiresAt: 0 };
 let kisApprovalCache = { key: '', expiresAt: 0 };
@@ -862,9 +867,25 @@ function kstDateBucketToSeconds(dateText, minuteOfDay) {
   return Math.floor(Date.UTC(y, mo - 1, d, h - 9, mi) / 1000);
 }
 
-async function fetchKoreanMinuteOhlcv(code, interval, limit) {
+async function fetchKisAfterHoursMinutes(code) {
+  const token = await fetchKisAccessToken();
+  if (!token) return [];
+  const params = new URLSearchParams({ FID_ETC_CLS_CODE: '', FID_COND_MRKT_DIV_CODE: 'UN', FID_INPUT_ISCD: cleanKoreanCode(code), FID_INPUT_HOUR_1: '200000', FID_PW_DATA_INCU_YN: 'Y' });
+  const res = await fetch(`${kisBaseUrl()}/uapi/domestic-stock/v1/quotations/inquire-time-itemchartprice?${params}`, { headers: kisHeaders(token, 'FHKST03010200') });
+  if (!res.ok) throw new Error(`KIS after-hours minute responded ${res.status}`);
+  const date = toKstDateKey();
+  return ((await res.json()).output2 || []).map(row => {
+    const clock = String(row.stck_cntg_hour || ''); if (!/^\d{6}$/.test(clock) || clock < '160000' || clock > '200000') return null;
+    const close = parseNumeric(row.stck_prpr); const open = parseNumeric(row.stck_oprc) ?? close;
+    const high = parseNumeric(row.stck_hgpr) ?? Math.max(open, close); const low = parseNumeric(row.stck_lwpr) ?? Math.min(open, close);
+    if (close == null || open == null) return null;
+    return { time: kstMinuteTimeToSeconds(`${date}${clock.slice(0, 4)}`), open, high, low, close, volume: parseNumeric(row.cntg_vol) ?? 0 };
+  }).filter(Boolean);
+}
+
+async function fetchKoreanMinuteOhlcv(code, interval, limit, market = 'regular') {
   const intervalMinutes = KRX_INTRADAY_MINUTES[interval] || 1;
-  const cacheKey = `krx-minute:${code}:${interval}:${limit}`;
+  const cacheKey = `krx-minute:${code}:${interval}:${limit}:${market}`;
   const now = Date.now();
   const cached = ohlcvCache.get(cacheKey);
   if (cached && now - cached.ts < KRX_MINUTE_TTL_MS) return cached.data;
@@ -894,7 +915,11 @@ async function fetchKoreanMinuteOhlcv(code, interval, limit) {
     })
     .filter(Boolean);
 
-  const regularRows = filterKrxRegularMinutes(minuteRows);
+  let regularRows = filterKrxRegularMinutes(minuteRows);
+  if (market === 'after') {
+    try { regularRows = [...regularRows, ...await fetchKisAfterHoursMinutes(code)].sort((a, b) => a.time - b.time); }
+    catch (error) { console.warn(`KIS after-hours minute fallback [${code}]:`, error.message); }
+  }
   if (intervalMinutes === 1) {
     const data = regularRows.slice(-limit);
     ohlcvCache.set(cacheKey, { ts: now, data });
@@ -912,7 +937,7 @@ async function fetchKoreanMinuteOhlcv(code, interval, limit) {
     }).format(new Date(row.time * 1000)).replaceAll('-', '');
     const minute = krxMinuteOfDay(row.time);
     if (minute == null) return;
-    const bucketMinute = openMinute + Math.floor((minute - openMinute) / intervalMinutes) * intervalMinutes;
+    const bucketMinute = minute >= 16 * 60 ? 16 * 60 + Math.floor((minute - 16 * 60) / intervalMinutes) * intervalMinutes : openMinute + Math.floor((minute - openMinute) / intervalMinutes) * intervalMinutes;
     const bucketTime = kstDateBucketToSeconds(date, bucketMinute);
     if (bucketTime == null) return;
     const current = buckets.get(bucketTime);
@@ -1013,12 +1038,121 @@ async function fetchUsOhlcv(symbol, interval, limit) {
   return quotes;
 }
 
-async function fetchKoreanOhlcv(code, interval, limit) {
+function toKstDateKey(date = new Date()) {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit' }).format(date).replaceAll('-', '');
+}
+
+function shiftKoreanDate(dateKey, days) {
+  const date = new Date(Date.UTC(Number(dateKey.slice(0, 4)), Number(dateKey.slice(4, 6)) - 1, Number(dateKey.slice(6, 8))));
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10).replaceAll('-', '');
+}
+
+function normalizeKoreanDailyRows(rows) {
+  const byDate = new Map();
+  (rows || []).forEach((row) => {
+    const date = String(row.date || row.stck_bsop_date || '').replace(/\D/g, '');
+    const open = parseNumeric(row.open ?? row.stck_oprc);
+    const high = parseNumeric(row.high ?? row.stck_hgpr);
+    const low = parseNumeric(row.low ?? row.stck_lwpr);
+    const close = parseNumeric(row.close ?? row.stck_clpr);
+    const volume = parseNumeric(row.volume ?? row.acml_vol) ?? 0;
+    if (/^\d{8}$/.test(date) && open != null && high != null && low != null && close != null) byDate.set(date, { date, open, high, low, close, volume });
+  });
+  return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
+}
+
+async function fetchNaverDailyHistory(code, calendarDays) {
+  const count = Math.min(Math.max(Math.ceil(calendarDays * 0.75) + 300, 600), 2500);
+  const res = await fetch(`https://fchart.stock.naver.com/sise.nhn?symbol=${encodeURIComponent(code)}&timeframe=day&count=${count}&requestType=0`, { headers: { 'User-Agent': 'Mozilla/5.0', 'Accept-Language': 'ko-KR,ko;q=0.9' } });
+  if (!res.ok) throw new Error(`Naver responded ${res.status}`);
+  const xml = await res.text();
+  return normalizeKoreanDailyRows([...xml.matchAll(/item data="([^"]+)"/g)].map(match => {
+    const item = match[1].split('|');
+    return { date: item[0], open: item[1], high: item[2], low: item[3], close: item[4], volume: item[5] };
+  }));
+}
+
+async function fetchKisDailyHistory(code, calendarDays) {
+  const cleanCode = cleanKoreanCode(code);
+  const end = toKstDateKey();
+  const start = shiftKoreanDate(end, -calendarDays);
+  const cached = koreanDailyHistoryCache.get(cleanCode);
+  if (cached && Date.now() - cached.ts < WEEKLY_OHLCV_CACHE_TTL_MS && cached.rows[0]?.date <= start) return cached.rows;
+  const pending = koreanDailyHistoryInFlight.get(cleanCode);
+  if (pending) {
+    const rows = await pending;
+    if (rows[0]?.date <= start) return rows;
+  }
+  const request = (async () => {
+    const token = await fetchKisAccessToken();
+    if (!token) throw new Error('KIS history unavailable');
+    const byDate = new Map(cached?.rows?.map(row => [row.date, row]) || []);
+    let pageEnd = end;
+    for (let page = 0; page < KIS_HISTORY_MAX_PAGES && pageEnd >= start; page += 1) {
+      const pageStart = pageEnd > shiftKoreanDate(start, KIS_HISTORY_PAGE_DAYS) ? shiftKoreanDate(pageEnd, -KIS_HISTORY_PAGE_DAYS) : start;
+      const params = new URLSearchParams({ FID_COND_MRKT_DIV_CODE: 'J', FID_INPUT_ISCD: cleanCode, FID_INPUT_DATE_1: pageStart, FID_INPUT_DATE_2: pageEnd, FID_PERIOD_DIV_CODE: 'D', FID_ORG_ADJ_PRC: '0' });
+      const res = await fetch(`${kisBaseUrl()}/uapi/domestic-stock/v1/quotations/inquire-daily-itemchartprice?${params}`, { headers: kisHeaders(token, 'FHKST03010100') });
+      if (!res.ok) throw new Error(`KIS daily history responded ${res.status}`);
+      const pageRows = normalizeKoreanDailyRows((await res.json()).output2 || []);
+      if (!pageRows.length) break;
+      pageRows.forEach(row => byDate.set(row.date, row));
+      if (pageRows[0].date >= pageEnd) break;
+      pageEnd = shiftKoreanDate(pageRows[0].date, -1);
+    }
+    const rows = normalizeKoreanDailyRows([...byDate.values()]);
+    if (!rows.length) throw new Error('KIS daily history returned no rows');
+    koreanDailyHistoryCache.set(cleanCode, { ts: Date.now(), rows });
+    return rows;
+  })();
+  koreanDailyHistoryInFlight.set(cleanCode, request);
+  try { return await request; } finally { koreanDailyHistoryInFlight.delete(cleanCode); }
+}
+
+function aggregateKoreanOhlcv(rows, interval) {
+  const bars = new Map();
+  normalizeKoreanDailyRows(rows).forEach(row => {
+    const date = new Date(`${row.date.slice(0, 4)}-${row.date.slice(4, 6)}-${row.date.slice(6, 8)}T00:00:00Z`);
+    if (interval === 'week') date.setUTCDate(date.getUTCDate() - ((date.getUTCDay() || 7) - 1));
+    else date.setUTCDate(1);
+    const time = date.toISOString().slice(0, 10);
+    const current = bars.get(time);
+    if (!current) bars.set(time, { time, open: row.open, high: row.high, low: row.low, close: row.close, volume: row.volume });
+    else { current.high = Math.max(current.high, row.high); current.low = Math.min(current.low, row.low); current.close = row.close; current.volume += row.volume; }
+  });
+  return [...bars.values()].sort((a, b) => a.time.localeCompare(b.time));
+}
+
+async function fetchKoreanLongOhlcv(code, interval, limit) {
+  const sourceLimit = interval === 'week' ? Math.max(limit, WEEKLY_OHLCV_SOURCE_BARS) : limit;
+  const key = `kr:${interval}:${cleanKoreanCode(code)}`;
+  const cached = weeklyOhlcvCache.get(key);
+  if (cached && Date.now() - cached.ts < WEEKLY_OHLCV_CACHE_TTL_MS && cached.data.length >= limit) return cached.data.slice(-limit);
+  const pending = weeklyOhlcvInFlight.get(key);
+  if (pending) return (await pending).slice(-limit);
+  const request = (async () => {
+    const calendarDays = interval === 'week' ? sourceLimit * 7 + 180 : sourceLimit * 32 + 120;
+    let rows; let source = 'KIS';
+    try { rows = await fetchKisDailyHistory(code, calendarDays); }
+    catch { source = 'Naver'; rows = await fetchNaverDailyHistory(cleanKoreanCode(code), calendarDays); }
+    const data = aggregateKoreanOhlcv(rows, interval).slice(-sourceLimit);
+    if (!data.length) throw new Error(`${source} ${interval}ly history returned no bars`);
+    weeklyOhlcvCache.set(key, { ts: Date.now(), data });
+    const logKey = `${source}:${key}`;
+    if (Date.now() - (koreanOhlcvLogAt.get(logKey) || 0) > 60_000) { koreanOhlcvLogAt.set(logKey, Date.now()); console.info(`${source} ${interval}ly OHLCV loaded [${cleanKoreanCode(code)}]: ${data.length} bars`); }
+    return data;
+  })();
+  weeklyOhlcvInFlight.set(key, request);
+  try { return (await request).slice(-limit); } finally { weeklyOhlcvInFlight.delete(key); }
+}
+
+async function fetchKoreanOhlcv(code, interval, limit, { market = 'regular' } = {}) {
+  const normalizedInterval = interval === '1h' ? '60m' : interval;
+  const cleanCode = cleanKoreanCode(code);
+  if (normalizedInterval === 'week' || normalizedInterval === 'month') return fetchKoreanLongOhlcv(cleanCode, normalizedInterval, limit);
   if (interval !== 'day') {
-    const cleanCode = code.replace(/\.(KS|KQ)$/, '');
-    const normalizedInterval = interval === '1h' ? '60m' : interval;
     if (KRX_INTRADAY_MINUTES[normalizedInterval]) {
-      return fetchKoreanMinuteOhlcv(cleanCode, normalizedInterval, limit);
+      return fetchKoreanMinuteOhlcv(cleanCode, normalizedInterval, limit, market);
     }
     const suffix = code.endsWith('.KS') || code.endsWith('.KQ') ? code : `${code}.KS`;
     try {
@@ -1030,6 +1164,12 @@ async function fetchKoreanOhlcv(code, interval, limit) {
       if (normalizedInterval === '30m') return filterKrxRegularMinutes(await fetchUsOhlcv(suffix, '60m', limit));
       return fetchUsOhlcv(suffix, 'day', limit);
     }
+  }
+  try {
+    const rows = await fetchKisDailyHistory(cleanCode, Math.max(Math.ceil(limit * 1.7) + 60, 365));
+    return rows.slice(-limit);
+  } catch {
+    // Public fallback below keeps Vercel and KIS-unavailable environments working.
   }
   const fetchCount = Math.min(limit + 300, 2500);
   const url = `https://fchart.stock.naver.com/sise.nhn?symbol=${encodeURIComponent(code)}&timeframe=day&count=${fetchCount}&requestType=0`;
@@ -1112,7 +1252,7 @@ app.get('/api/search', async (req, res) => {
 
 app.get('/api/ohlcv', async (req, res) => {
   try {
-    const { symbol, interval = 'day', limit = 300 } = req.query;
+    const { symbol, interval = 'day', limit = 300, market = 'regular' } = req.query;
     if (!symbol) return res.status(400).json({ error: 'symbol required' });
     const lim = Math.min(Number(limit) || 300, 2000);
     let data;
@@ -1121,9 +1261,9 @@ app.get('/api/ohlcv', async (req, res) => {
     const code = symbol.replace(/\.(KS|KQ)$/, '');
     if (isIndex) data = await fetchUsOhlcv(symbol, interval, lim);
     else if (isKorean && interval === 'day') {
-      data = await fetchKoreanOhlcv(code, interval, lim);
+      data = await fetchKoreanOhlcv(code, interval, lim, { market });
       data = data.map(x => ({ ...x, time: x.date ? x.date.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3') : x.time }));
-    } else if (isKorean) data = await fetchKoreanOhlcv(code, interval, lim);
+    } else if (isKorean) data = await fetchKoreanOhlcv(code, interval, lim, { market });
     else data = await fetchUsOhlcv(symbol, interval, lim);
     const seen = new Set();
     data = data.filter(d => { if (seen.has(d.time)) return false; seen.add(d.time); return true; }).sort((a, b) => (a.time > b.time ? 1 : -1));
