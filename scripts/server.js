@@ -1121,8 +1121,22 @@ const distDir = new URL('../dist/', import.meta.url);
 const indexHtml = new URL('../dist/index.html', import.meta.url);
 
 if (existsSync(distDir)) {
-  app.use(express.static(distDir.pathname));
+  // HTML must always be revalidated so a deployment never leaves a stale app
+  // shell in a normal browser cache. Vite assets are content-hashed, so they
+  // can safely be cached for a year without delaying a new deployment.
+  app.use(express.static(distDir.pathname, {
+    setHeaders: (res, filePath) => {
+      if (filePath.endsWith('/index.html')) {
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+      } else if (filePath.includes('/assets/')) {
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      } else {
+        res.setHeader('Cache-Control', 'public, max-age=3600');
+      }
+    },
+  }));
   app.get(/^(?!\/api(?:\/|$)).*/, (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
     res.sendFile(indexHtml.pathname);
   });
 }
