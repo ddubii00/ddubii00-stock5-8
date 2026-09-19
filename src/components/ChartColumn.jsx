@@ -107,16 +107,40 @@ function isRegularMarketOpen(symbol) {
   return minutes >= 9 * 60 + 30 && minutes <= 16 * 60;
 }
 
-function isMarketUpdateWindow(symbol) {
+function isMarketUpdateWindow(symbol, marketMode = 'KRX') {
   const korean = isKoreanMarketSymbol(symbol);
   const { weekday, minutes } = marketClock(symbolTimeZone(symbol));
   if (weekday === 'Sat' || weekday === 'Sun') return false;
-  if (korean) return minutes >= 9 * 60 && minutes <= 15 * 60 + 31;
+  // KRX 장후는 16:00~20:00 애프터마켓 체결까지 같은 KIS 실시간 체결가로 받는다.
+  if (korean) return minutes >= 9 * 60 && minutes <= (marketMode === 'KRX2' ? 20 * 60 : 15 * 60 + 33);
   return minutes >= 9 * 60 + 30 && minutes <= 16 * 60;
 }
 
-function marketStateLabel(symbol) {
-  return isRegularMarketOpen(symbol) ? '실시간' : '종가';
+function marketStateLabel(symbol, marketMode) {
+  if (isRegularMarketOpen(symbol)) return '실시간';
+  if (marketMode === 'KRX2' && isKoreanMarketSymbol(symbol)) return '장후 포함';
+  return '종가';
+}
+
+function buildTradingAdvice(candles) {
+  if (!candles || candles.length < 62) return { tone: 'neutral', text: '신호 계산에 필요한 일봉 데이터가 부족합니다.' };
+  const last = candles.at(-1); const prev = candles.at(-2);
+  const ma5 = calculateMA(candles, 5); const ma20 = calculateMA(candles, 20); const ma60 = calculateMA(candles, 60);
+  const macd = calculateMACD(candles); const ichi = calculateIchimoku(candles);
+  const val = (rows, index) => Number(rows.at(index)?.value); const m = macd.at(-1); const pm = macd.at(-2); const ic = ichi.at(-1); const pic = ichi.at(-2);
+  const sell = []; const buy = [];
+  if (Number.isFinite(m?.macd) && Number.isFinite(m?.signal) && Number.isFinite(pm?.macd) && pm.macd >= pm.signal && m.macd < m.signal) sell.push(['A군 MACD 하향', 5]);
+  if (Number.isFinite(m?.macd) && Number.isFinite(m?.signal) && Number.isFinite(pm?.macd) && pm.macd <= pm.signal && m.macd > m.signal) buy.push(["A'군 MACD 상향", 5]);
+  if (last.close < val(ma5, -1) && prev.close >= val(ma5, -2)) sell.push(['B군 5일선 이탈', 10]);
+  if (last.close > val(ma5, -1) && prev.close <= val(ma5, -2)) buy.push(["B'군 5일선 회복", 10]);
+  if (val(ma5, -1) < val(ma20, -1) && val(ma5, -2) >= val(ma20, -2)) sell.push(['C군 5/20 데드크로스', 15]);
+  if (val(ma5, -1) > val(ma20, -1) && val(ma5, -2) <= val(ma20, -2)) buy.push(["C'군 5/20 골든크로스", 15]);
+  if (Number.isFinite(ic?.kijun) && Number.isFinite(pic?.kijun) && last.close < ic.kijun && prev.close >= pic.kijun) sell.push(['E군 기준선 하향', 5]);
+  if (Number.isFinite(ic?.kijun) && Number.isFinite(pic?.kijun) && last.close > ic.kijun && prev.close <= pic.kijun) buy.push(["E'군 기준선 회복", 5]);
+  const trendUp = last.close > val(ma60, -1); const selected = sell.length ? sell : buy;
+  if (!selected.length) return { tone: 'neutral', text: `${trendUp ? '상승 추세 유지' : '하락/반전 국면'} — 신규 확정 신호 없음, 다음 종가 확인` };
+  const [name, percent] = selected[0]; const isSell = sell.length > 0;
+  return { tone: isSell ? 'sell' : 'buy', text: `${isSell ? '부분매도' : '분할매수'} 참고 ${percent}% · ${name}${selected.length > 1 ? ` 외 ${selected.length - 1}개` : ''} (같은 그룹은 1회만)` };
 }
 
 function formatNumberNoDecimals(value) {
@@ -868,6 +892,7 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
   const [quote, setQuote] = useState(null);
   const [copyStatus, setCopyStatus] = useState('');
   const [chartsReady, setChartsReady] = useState(false);
+  const [advice, setAdvice] = useState({ tone: 'neutral', text: '차트 데이터를 불러오는 중…' });
   const [note, setNote] = useState(memo);
   const [notePos, setNotePos] = useState(memoPosition);
   const [loadVersion, setLoadVersion] = useState(0);
@@ -1517,7 +1542,7 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
       }
     }
 
-    const realtimeKorean = isKoreanSymbol(sym) && isMarketUpdateWindow(sym);
+    const realtimeKorean = isKoreanSymbol(sym) && isMarketUpdateWindow(sym, marketMode);
     const dailyUrl = `/api/ohlcv?symbol=${encodeURIComponent(sym)}&interval=day&limit=6`;
     const response = await fetch(dailyUrl, { signal });
     const contentType = response.headers.get('content-type') || '';
@@ -1538,7 +1563,7 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
     }
 
     if (nextQuote) setQuote({ ...nextQuote, symbol: sym });
-  }, []);
+  }, [marketMode]);
 
   // ─── 메인 3개 차트 데이터 로드 ───────────────────────
   const fetchMain = useCallback(async (sym, tf, lim, { followLatest = false } = {}) => {
@@ -1561,6 +1586,7 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
     // ② null 값 필터링
     const candles = normalizeCandleData(data);
     if (!candles.length) throw new Error('시세 데이터가 비어 있습니다.');
+    setAdvice(buildTradingAdvice(candles));
     crosshairValueMapsRef.current = { candle: new Map(), volume: new Map(), macd: new Map() };
     mainCandlesRef.current = candles;
     ser.current.candle.setData(candles);
@@ -1765,9 +1791,9 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
     updateQuote();
     let timer = null;
 
-    if (isMarketUpdateWindow(symbol)) {
+    if (isMarketUpdateWindow(symbol, marketMode)) {
       timer = setInterval(() => {
-        if (!isMarketUpdateWindow(symbol)) {
+        if (!isMarketUpdateWindow(symbol, marketMode)) {
           clearInterval(timer);
           timer = null;
           return;
@@ -1780,7 +1806,7 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
       controller.abort();
       if (timer) clearInterval(timer);
     };
-  }, [symbol, chartsReady, fetchQuote]);
+  }, [symbol, chartsReady, fetchQuote, marketMode]);
 
   useEffect(() => {
     if (!symbol || !chartsReady || !supportsKisRealtimeStream(symbol)) return undefined;
@@ -1812,20 +1838,23 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
     const isIntra = INTRA_INTERVALS.includes(mainTf.interval);
     const ms = isIntra ? (isKoreanSymbol(symbol) ? 1000 : 3000) : 5000;
     const t = setInterval(() => {
-      if (isMarketUpdateWindow(symbol)) fetchMain(symbol, mainTf, limit, { followLatest: isIntra }).catch(() => {});
+      // Naver 분봉은 정규장까지만 제공하므로 장후에는 KIS WebSocket 캔들을 유지한다.
+      const afterHours = marketMode === 'KRX2' && isKoreanSymbol(symbol) && !isRegularMarketOpen(symbol);
+      if (isMarketUpdateWindow(symbol, marketMode) && !afterHours) fetchMain(symbol, mainTf, limit, { followLatest: isIntra }).catch(() => {});
     }, ms);
     return () => clearInterval(t);
-  }, [symbol, mainTf, limit, chartsReady, fetchMain]);
+  }, [symbol, mainTf, limit, chartsReady, fetchMain, marketMode]);
 
   useEffect(() => {
     if (!symbol || !chartsReady) return;
     const isIntra = INTRA_INTERVALS.includes(ichiTf.interval);
     const ms = isIntra ? (isKoreanSymbol(symbol) ? 1000 : 3000) : 5000;
     const t = setInterval(() => {
-      if (isMarketUpdateWindow(symbol)) fetchIchi(symbol, ichiTf, ichiLimit).catch(() => {});
+      const afterHours = marketMode === 'KRX2' && isKoreanSymbol(symbol) && !isRegularMarketOpen(symbol);
+      if (isMarketUpdateWindow(symbol, marketMode) && !afterHours) fetchIchi(symbol, ichiTf, ichiLimit).catch(() => {});
     }, ms);
     return () => clearInterval(t);
-  }, [symbol, ichiTf, ichiLimit, chartsReady, fetchIchi]);
+  }, [symbol, ichiTf, ichiLimit, chartsReady, fetchIchi, marketMode]);
 
   const applyLimit = () => {
     const n = parseInt(limitInput, 10);
@@ -1929,7 +1958,7 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
                     ({formatSignedPercent(quote.changePct)}, {formatSignedValue(quote.change, '', quoteValueDigits(symbol))})
                   </span>
                 )}
-                <span className="quote-state">{marketStateLabel(symbol)}</span>
+                <span className="quote-state">{marketStateLabel(symbol, marketMode)}</span>
               </span>
             )}
             {loading && <span className="loading-dot">●</span>}
@@ -2003,7 +2032,7 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
 
       {/* 차트 영역 */}
       <div className="charts-area">
-        <div className="signal-chip">부분매도: A 5% · B 10% · C 15% · D 30% · E 20% · F 15% (중복 신호는 한 번만)</div>
+        <div className={`signal-advice ${advice.tone}`}>신호 시스템: {advice.text}</div>
         <div ref={priceSectionRef} className="chart-section" style={{ position: 'relative' }}>
           <div className="chart-label">캔들차트</div>
           <div ref={priceRef} />
