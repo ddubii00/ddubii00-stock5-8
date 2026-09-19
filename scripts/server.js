@@ -74,6 +74,10 @@ const realtimeQuotes = new Map();
 let kisRealtimeSocket = null;
 let kisRealtimeConnecting = null;
 let kisReconnectTimer = null;
+let kisRealtimeBlockedUntil = 0;
+let kisReconnectAttempts = 0;
+let kisAlreadyInUseLoggedAt = 0;
+const KIS_RECONNECT_DELAYS_MS = [2_000, 5_000, 10_000, 30_000, 60_000];
 
 const KRX_FALLBACK_ITEMS = [
   { name: 'SK하이닉스', code: '000660', marketType: '유가증권' },
@@ -449,14 +453,17 @@ async function fetchNaverIndexQuotes() {
 async function fetchRealtimeQuote(symbol, market = 'regular') {
   const key = String(symbol || '').toUpperCase();
   const realtime = realtimeQuotes.get(realtimeKeyForSymbol(key));
-  if (market !== 'after' && realtime && Date.now() - realtime.receivedAt < 10_000) return realtime.quote;
+  const regularKoreanAfterClose = market === 'regular' && isKoreanStockSymbol(symbol) && !isKrxRegularQuoteWindow();
+  // After 15:30 KRX mode must show the official regular-session close, never
+  // an after-market WebSocket tick cached under the same symbol.
+  if (!regularKoreanAfterClose && market !== 'after' && realtime && Date.now() - realtime.receivedAt < 10_000) return realtime.quote;
 
   const kisQuoteKey = `kis-quote:${symbol}:${market}`;
   const now = Date.now();
   const kisCached = quoteCache.get(kisQuoteKey);
   if (kisCached && now - kisCached.ts < REALTIME_QUOTE_TTL_MS) return kisCached.data;
 
-  if (hasKisConfig()) {
+  if (hasKisConfig() && !regularKoreanAfterClose) {
     try {
       const kisQuote = isKoreanStockSymbol(symbol)
         ? await fetchKisDomesticStockQuote(symbol, market)
@@ -471,7 +478,7 @@ async function fetchRealtimeQuote(symbol, market = 'regular') {
   }
 
   if (isKoreanStockSymbol(symbol)) {
-    const cacheKey = `krx-quote:${symbol}`;
+    const cacheKey = `krx-quote:${symbol}:${market}`;
     const cached = quoteCache.get(cacheKey);
     if (cached && now - cached.ts < REALTIME_QUOTE_TTL_MS) return cached.data;
     const krxQuote = await fetchKoreanStockQuote(symbol);
@@ -573,12 +580,42 @@ function hasRealtimeClientForSymbol(cacheKey) {
   return false;
 }
 
+function isKrxRegularQuoteWindow() {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Seoul', weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false,
+  }).formatToParts(new Date());
+  const weekday = parts.find(part => part.type === 'weekday')?.value;
+  const hour = Number(parts.find(part => part.type === 'hour')?.value);
+  const minute = Number(parts.find(part => part.type === 'minute')?.value);
+  const currentMinute = hour * 60 + minute;
+  return weekday !== 'Sat' && weekday !== 'Sun' && currentMinute >= 9 * 60 && currentMinute <= 15 * 60 + 33;
+}
+
+function blockKisRealtime(socket) {
+  kisRealtimeBlockedUntil = Date.now() + 5 * 60 * 1000;
+  kisReconnectAttempts = 0;
+  if (Date.now() - kisAlreadyInUseLoggedAt > 60_000) {
+    console.warn('KIS realtime blocked for 5 minutes: ALREADY IN USE appkey');
+    kisAlreadyInUseLoggedAt = Date.now();
+  }
+  if (socket && socket.readyState < WebSocket.CLOSING) socket.close();
+}
+
 function scheduleKisReconnect() {
   if (kisReconnectTimer || !realtimeSymbols.size) return;
+  const now = Date.now();
+  const blockedDelay = kisRealtimeBlockedUntil - now;
+  const delay = blockedDelay > 0
+    ? blockedDelay
+    : KIS_RECONNECT_DELAYS_MS[Math.min(kisReconnectAttempts++, KIS_RECONNECT_DELAYS_MS.length - 1)];
   kisReconnectTimer = setTimeout(() => {
     kisReconnectTimer = null;
-    connectKisRealtime().catch(e => console.warn('KIS realtime reconnect failed:', e.message));
-  }, 2000);
+    if (!realtimeSymbols.size) return;
+    connectKisRealtime().catch(e => {
+      if (Date.now() >= kisRealtimeBlockedUntil) console.warn('KIS realtime reconnect failed:', e.message);
+      scheduleKisReconnect();
+    });
+  }, delay);
 }
 
 function parseKisDomesticStockRow(row) {
@@ -678,7 +715,9 @@ function parseKisRealtimePacket(message) {
 
 async function connectKisRealtime() {
   if (!hasKisConfig()) throw new Error('KIS_APP_KEY/KIS_APP_SECRET missing');
+  if (Date.now() < kisRealtimeBlockedUntil) throw new Error('KIS realtime reconnect is temporarily blocked');
   if (kisRealtimeSocket?.readyState === WebSocket.OPEN) return kisRealtimeSocket;
+  if (kisRealtimeSocket?.readyState === WebSocket.CONNECTING) return kisRealtimeSocket;
   if (kisRealtimeConnecting) return kisRealtimeConnecting;
 
   kisRealtimeConnecting = (async () => {
@@ -687,6 +726,7 @@ async function connectKisRealtime() {
     kisRealtimeSocket = socket;
 
     socket.on('open', () => {
+      kisReconnectAttempts = 0;
       console.log(`✅ KIS realtime WebSocket connected (${realtimeSymbols.size} symbols)`);
       for (const topic of realtimeSymbols.values()) {
         socket.send(kisSubscribeMessage(approvalKey, topic, '1'));
@@ -699,7 +739,9 @@ async function connectKisRealtime() {
         try {
           const json = JSON.parse(text);
           const msg = json?.body?.msg1;
-          if (msg && !/SUBSCRIBE SUCCESS/i.test(msg)) console.warn('KIS realtime:', msg);
+          if (String(msg || '').includes('ALREADY IN USE appkey')) {
+            blockKisRealtime(socket);
+          } else if (msg && !/SUBSCRIBE SUCCESS/i.test(msg)) console.warn('KIS realtime:', msg);
         } catch {
           // ignore malformed control messages
         }
@@ -713,8 +755,10 @@ async function connectKisRealtime() {
 
     socket.on('close', () => {
       console.warn('KIS realtime WebSocket closed');
-      if (kisRealtimeSocket === socket) kisRealtimeSocket = null;
-      scheduleKisReconnect();
+      if (kisRealtimeSocket === socket) {
+        kisRealtimeSocket = null;
+        scheduleKisReconnect();
+      }
     });
 
     socket.on('error', (e) => {
@@ -722,9 +766,9 @@ async function connectKisRealtime() {
     });
 
     await new Promise((resolve, reject) => {
-      socket.once('open', resolve);
-      socket.once('error', reject);
-      setTimeout(() => reject(new Error('KIS realtime WebSocket timeout')), 8000);
+      const timeout = setTimeout(() => reject(new Error('KIS realtime WebSocket timeout')), 8000);
+      socket.once('open', () => { clearTimeout(timeout); resolve(); });
+      socket.once('error', (error) => { clearTimeout(timeout); reject(error); });
     });
     return socket;
   })();
@@ -749,8 +793,10 @@ function registerRealtimeSymbol(symbol) {
     return topic;
   }
 
-  connectKisRealtime()
-    .catch(e => console.warn(`KIS realtime unavailable [${topic.cacheKey}]:`, e.message));
+  if (Date.now() >= kisRealtimeBlockedUntil) {
+    connectKisRealtime()
+      .catch(e => console.warn(`KIS realtime unavailable [${topic.cacheKey}]:`, e.message));
+  }
 
   return topic;
 }
@@ -1086,6 +1132,7 @@ app.get('/api/stream/quote', async (req, res) => {
     trKey: topic.trKey,
     kisConfigured: hasKisConfig(),
     source: hasKisConfig() ? 'kis-ws' : 'fallback',
+    realtimeStatus: Date.now() < kisRealtimeBlockedUntil ? 'waiting' : 'connecting',
   });
 
   realtimeClients.set(id, { symbol: topic.cacheKey, res });

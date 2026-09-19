@@ -117,7 +117,8 @@ function isMarketUpdateWindow(symbol, marketMode = 'KRX') {
   return minutes >= 9 * 60 + 30 && minutes <= 16 * 60;
 }
 
-function marketStateLabel(symbol, marketMode) {
+function marketStateLabel(symbol, marketMode, realtimeStatus) {
+  if (realtimeStatus === 'waiting') return '실시간 재연결 대기';
   if (isRegularMarketOpen(symbol)) return '실시간';
   if (marketMode === 'KRX2' && isKoreanMarketSymbol(symbol)) return '장후 포함';
   return '종가';
@@ -892,6 +893,7 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
   const [analysisResult, setAnalysisResult] = useState('');
   const [analysisFontSize, setAnalysisFontSize] = useState(15);
   const [quote, setQuote] = useState(null);
+  const [realtimeStatus, setRealtimeStatus] = useState('idle');
   const [copyStatus, setCopyStatus] = useState('');
   const [chartsReady, setChartsReady] = useState(false);
   const [advice, setAdvice] = useState({ tone: 'neutral', text: '차트 데이터를 불러오는 중…' });
@@ -954,6 +956,7 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
   const xhairLock   = useRef(false);
   const inited      = useRef(false);
   const adviceDailySymbolRef = useRef('');
+  const streamRef = useRef(null);
 
   const dragNote = (event) => {
     const start = { x: event.clientX, y: event.clientY, pos: notePos };
@@ -1462,6 +1465,10 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
   const applyRealtimeQuote = useCallback((quoteData) => {
     const activeSymbol = symbolRef.current;
     if (!activeSymbol || !quoteData || !Number.isFinite(Number(quoteData.price))) return;
+    // KRX regular mode freezes at the official 15:30 close. After-market ticks
+    // are accepted only after the user explicitly selects KRX 장후.
+    if (marketMode === 'KRX' && isKoreanSymbol(activeSymbol) && !isRegularMarketOpen(activeSymbol)) return;
+    setRealtimeStatus('live');
     setQuote({ ...quoteData, symbol: activeSymbol });
 
     if (!isIntradayTf(mainTf) || !ser.current.candle) return;
@@ -1536,7 +1543,7 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
       return buildTimeMap(maData);
     });
     drawMacdBackground();
-  }, [drawMacdBackground, mainTf]);
+  }, [drawMacdBackground, mainTf, marketMode]);
 
   const fetchQuote = useCallback(async (sym, signal) => {
     if (!sym) return;
@@ -1832,7 +1839,10 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
 
   useEffect(() => {
     if (!symbol || !chartsReady || !supportsKisRealtimeStream(symbol)) return undefined;
+    if (streamRef.current) streamRef.current.close();
+    const statusTimer = setTimeout(() => setRealtimeStatus('connecting'), 0);
     const stream = new EventSource(apiUrl(`/stream/quote?symbol=${encodeURIComponent(symbol)}`));
+    streamRef.current = stream;
 
     const handleQuote = (event) => {
       try {
@@ -1842,15 +1852,23 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
         console.warn('Realtime quote parse failed:', e);
       }
     };
+    const handleReady = (event) => {
+      try { setRealtimeStatus(JSON.parse(event.data)?.realtimeStatus || 'connecting'); } catch { setRealtimeStatus('connecting'); }
+    };
 
     stream.addEventListener('quote', handleQuote);
+    stream.addEventListener('ready', handleReady);
     stream.onerror = () => {
-      // EventSource reconnects automatically; REST polling remains as fallback.
+      // REST quote data stays visible while EventSource performs its own retry.
+      setRealtimeStatus('waiting');
     };
 
     return () => {
       stream.removeEventListener('quote', handleQuote);
+      stream.removeEventListener('ready', handleReady);
       stream.close();
+      clearTimeout(statusTimer);
+      if (streamRef.current === stream) streamRef.current = null;
     };
   }, [symbol, chartsReady, applyRealtimeQuote]);
 
@@ -1980,7 +1998,7 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
                     ({formatSignedPercent(quote.changePct)}, {formatSignedValue(quote.change, '', quoteValueDigits(symbol))})
                   </span>
                 )}
-                <span className="quote-state">{marketStateLabel(symbol, marketMode)}</span>
+                <span className="quote-state">{marketStateLabel(symbol, marketMode, realtimeStatus)}</span>
               </span>
             )}
             {loading && <span className="loading-dot">●</span>}
