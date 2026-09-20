@@ -7,6 +7,7 @@ import {
   CrosshairMode,
 } from 'lightweight-charts';
 import { calculateMACD, calculateIchimoku, calculateMA, buildTimeMap } from '../utils/indicators';
+import { analyzeTradeSignal, formatTradeSignalAdvice } from '../utils/tradeSignal';
 import StockSearch from './StockSearch';
 import { apiUrl } from '../api';
 
@@ -126,26 +127,20 @@ function marketStateLabel(symbol, marketMode, realtimeStatus) {
   return '종가';
 }
 
-function buildTradingAdvice(candles) {
-  if (!candles || candles.length < 62) return { tone: 'neutral', text: '신호 없음 — 일봉 데이터가 부족합니다.' };
-  const last = candles.at(-1);
-  const ma5 = calculateMA(candles, 5); const ma20 = calculateMA(candles, 20);
-  const macd = calculateMACD(candles); const ichi = calculateIchimoku(candles);
-  const val = (rows, index) => Number(rows.at(index)?.value); const m = macd.at(-1); const ic = ichi.at(-1);
-  const sell = []; const buy = [];
-  if (Number.isFinite(m?.macd) && Number.isFinite(m?.signal) && m.macd < m.signal) sell.push(['A군 MACD 약세', 5]);
-  if (Number.isFinite(m?.macd) && Number.isFinite(m?.signal) && m.macd > m.signal) buy.push(["A'군 MACD 강세", 5]);
-  if (last.close < val(ma5, -1)) sell.push(['B군 종가 5일선 하회', 10]);
-  if (last.close > val(ma5, -1)) buy.push(["B'군 종가 5일선 상회", 10]);
-  if (val(ma5, -1) < val(ma20, -1)) sell.push(['C군 5일선이 20일선 아래', 15]);
-  if (val(ma5, -1) > val(ma20, -1)) buy.push(["C'군 5일선이 20일선 위", 15]);
-  if (Number.isFinite(ic?.kijun) && last.close < ic.kijun) sell.push(['E군 종가 기준선 하회', 5]);
-  if (Number.isFinite(ic?.kijun) && last.close > ic.kijun) buy.push(["E'군 종가 기준선 상회", 5]);
-  const selected = sell.length ? sell : buy;
-  if (!selected.length) return { tone: 'neutral', text: '신호 없음 — 오늘 일봉 종가 기준' };
-  const percent = selected.reduce((sum, [, value]) => sum + value, 0);
-  const isSell = sell.length > 0;
-  return { tone: isSell ? 'sell' : 'buy', text: `${isSell ? '부분매도' : '분할매수'} ${percent}% · 오늘 종가: ${selected.map(([name]) => name).join(' / ')}` };
+async function loadTradingAdvice(symbol) {
+  try {
+    const endpoint = isKoreanSymbol(symbol)
+      ? `/signal-history?symbol=${encodeURIComponent(symbol)}&limit=500`
+      : `/ohlcv?symbol=${encodeURIComponent(symbol)}&interval=day&limit=500`;
+    const response = await fetch(apiUrl(endpoint));
+    const contentType = response.headers.get('content-type') || '';
+    const payload = contentType.includes('application/json') ? await response.json().catch(() => null) : null;
+    if (!response.ok) throw new Error(payload?.error || `신호용 일봉 조회 실패 (${response.status})`);
+    if (!Array.isArray(payload)) throw new Error('신호용 일봉 응답 형식이 올바르지 않습니다.');
+    return formatTradeSignalAdvice(analyzeTradeSignal(payload, 0));
+  } catch (error) {
+    return { tone: 'neutral', text: `신호 계산 불가 — ${error?.message || '일봉 데이터 조회 실패'}` };
+  }
 }
 
 function formatNumberNoDecimals(value) {
@@ -1616,19 +1611,13 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
     // ② null 값 필터링
     const candles = normalizeCandleData(data);
     if (!candles.length) throw new Error('시세 데이터가 비어 있습니다.');
-    if (tf.interval === 'day') {
+    const shouldRefreshAdvice = tf.interval === 'day' || adviceDailySymbolRef.current !== sym;
+    if (shouldRefreshAdvice) {
       adviceDailySymbolRef.current = sym;
-      setTimeout(() => setAdvice(buildTradingAdvice(candles)), 0);
-    } else if (adviceDailySymbolRef.current !== sym) {
-      let dailyCandles = candles;
-      try {
-        const dailyResponse = await fetch(apiUrl(`/ohlcv?symbol=${encodeURIComponent(sym)}&interval=day&limit=130`));
-        if (dailyResponse.ok) dailyCandles = normalizeCandleData(await dailyResponse.json());
-      } catch {
-        // The visible chart remains usable even when the additional daily request fails.
-      }
-      adviceDailySymbolRef.current = sym;
-      setTimeout(() => setAdvice(buildTradingAdvice(dailyCandles)), 0);
+      setAdvice({ tone: 'neutral', text: '부분매매 신호 계산 중…' });
+      void loadTradingAdvice(sym).then((nextAdvice) => {
+        if (adviceDailySymbolRef.current === sym) setAdvice(nextAdvice);
+      });
     }
     crosshairValueMapsRef.current = { candle: new Map(), volume: new Map(), macd: new Map() };
     mainCandlesRef.current = candles;
