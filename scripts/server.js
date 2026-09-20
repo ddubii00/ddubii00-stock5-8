@@ -1062,6 +1062,24 @@ function normalizeKoreanDailyRows(rows) {
   return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
 }
 
+async function fetchNaverSignalHistory(code, count = 500) {
+  const cleanCode = cleanKoreanCode(code);
+  if (!/^\d{6}$/.test(cleanCode)) throw new Error('Korean 6-digit symbol required');
+  const limit = Math.max(120, Math.min(500, Number(count) || 500));
+  const res = await fetch(`https://fchart.stock.naver.com/sise.nhn?symbol=${encodeURIComponent(cleanCode)}&timeframe=day&count=${limit}&requestType=0`, {
+    headers: { 'User-Agent': 'Mozilla/5.0', 'Accept-Language': 'ko-KR,ko;q=0.9' },
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (!res.ok) throw new Error(`Naver signal history responded ${res.status}`);
+  const xml = await res.text();
+  const rows = normalizeKoreanDailyRows([...xml.matchAll(/item data="([^"]+)"/g)].map(match => {
+    const item = match[1].split('|');
+    return { date: item[0], open: item[1], high: item[2], low: item[3], close: item[4], volume: item[5] };
+  })).slice(-limit);
+  if (!rows.length) throw new Error('Naver signal history returned no rows');
+  return rows;
+}
+
 async function fetchNaverDailyHistory(code, calendarDays) {
   const count = Math.min(Math.max(Math.ceil(calendarDays * 0.75) + 300, 600), 2500);
   const res = await fetch(`https://fchart.stock.naver.com/sise.nhn?symbol=${encodeURIComponent(code)}&timeframe=day&count=${count}&requestType=0`, { headers: { 'User-Agent': 'Mozilla/5.0', 'Accept-Language': 'ko-KR,ko;q=0.9' } });
@@ -1246,6 +1264,21 @@ app.get('/api/search', async (req, res) => {
     }));
   } catch (e) {
     console.error('Search error:', e.message);
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/signal-history', async (req, res) => {
+  try {
+    const { symbol, limit = 500 } = req.query;
+    if (!symbol) return res.status(400).json({ error: 'symbol required' });
+    const code = String(symbol).replace(/\.(KS|KQ)$/i, '');
+    if (!/^\d{6}$/.test(code)) return res.status(400).json({ error: 'Korean 6-digit symbol required' });
+    const data = await fetchNaverSignalHistory(code, limit);
+    res.set('Cache-Control', 'no-store');
+    return res.json(data);
+  } catch (e) {
+    console.error(`Signal history error [${req.query.symbol}]:`, e.message);
     return res.status(500).json({ error: e.message });
   }
 });
