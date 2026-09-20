@@ -96,6 +96,18 @@ export function calculateMA(ohlcv, period) {
   return result;
 }
 
+/** Bollinger Bands: 20-period SMA with upper/lower bands at two standard deviations. */
+export function calculateBollingerBands(ohlcv, period = 20, multiplier = 2) {
+  return (ohlcv || []).map((candle, index) => {
+    if (index < period - 1) return { time: candle.time, middle: null, upper: null, lower: null };
+    const closes = ohlcv.slice(index - period + 1, index + 1).map(item => Number(item.close));
+    const middle = closes.reduce((sum, value) => sum + value, 0) / period;
+    const variance = closes.reduce((sum, value) => sum + (value - middle) ** 2, 0) / period;
+    const deviation = Math.sqrt(variance);
+    return { time: candle.time, middle, upper: middle + multiplier * deviation, lower: middle - multiplier * deviation };
+  });
+}
+
 /** Build a Map<time, value> for fast lookup */
 export function buildTimeMap(arr) {
   const m = new Map();

@@ -6,7 +6,7 @@ import {
   LineSeries,
   CrosshairMode,
 } from 'lightweight-charts';
-import { calculateMACD, calculateIchimoku, calculateMA, buildTimeMap } from '../utils/indicators';
+import { calculateMACD, calculateIchimoku, calculateMA, calculateBollingerBands, buildTimeMap } from '../utils/indicators';
 import { analyzeTradeSignal, formatTradeSignalAdvice } from '../utils/tradeSignal';
 import StockSearch from './StockSearch';
 import { apiUrl } from '../api';
@@ -907,6 +907,7 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
     ma20: true,
     ma60: true,
     ma120: true,
+    bollinger: false,
   });
   const [ichiVisible, setIchiVisible] = useState({
     candle: true,
@@ -988,6 +989,9 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
     MA_PERIODS.forEach((period, idx) => {
       ser.current.maLines?.[idx]?.applyOptions({ visible: mainVisible[`ma${period}`] });
     });
+    ser.current.bollingerUpper?.applyOptions({ visible: mainVisible.bollinger });
+    ser.current.bollingerMiddle?.applyOptions({ visible: mainVisible.bollinger });
+    ser.current.bollingerLower?.applyOptions({ visible: mainVisible.bollinger });
   }, [mainVisible]);
 
   useEffect(() => {
@@ -1153,6 +1157,21 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
         ...NO_PRICE_LINE,
       })
     );
+    ser.current.bollingerUpper = pc.addSeries(LineSeries, {
+      color: '#2563eb', lineWidth: 1, lineStyle: 2, crosshairMarkerVisible: false,
+      priceFormat: { type: 'custom', formatter: (price) => formatPriceLabel(price, symbolRef.current) },
+      visible: false, ...NO_PRICE_LINE,
+    });
+    ser.current.bollingerMiddle = pc.addSeries(LineSeries, {
+      color: '#2563eb', lineWidth: 1, crosshairMarkerVisible: false,
+      priceFormat: { type: 'custom', formatter: (price) => formatPriceLabel(price, symbolRef.current) },
+      visible: false, ...NO_PRICE_LINE,
+    });
+    ser.current.bollingerLower = pc.addSeries(LineSeries, {
+      color: '#2563eb', lineWidth: 1, lineStyle: 2, crosshairMarkerVisible: false,
+      priceFormat: { type: 'custom', formatter: (price) => formatPriceLabel(price, symbolRef.current) },
+      visible: false, ...NO_PRICE_LINE,
+    });
 
     ser.current.vol = vc.addSeries(HistogramSeries, {
       color: '#ef5350',
@@ -1542,6 +1561,10 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
       ser.current.maLines[idx]?.setData(safeLineData(maData));
       return buildTimeMap(maData);
     });
+    const bollinger = calculateBollingerBands(candles);
+    ser.current.bollingerUpper?.setData(safeLineData(bollinger.map(({ time, upper }) => ({ time, value: upper }))));
+    ser.current.bollingerMiddle?.setData(safeLineData(bollinger.map(({ time, middle }) => ({ time, value: middle }))));
+    ser.current.bollingerLower?.setData(safeLineData(bollinger.map(({ time, lower }) => ({ time, value: lower }))));
     drawMacdBackground();
   }, [drawMacdBackground, mainTf, marketMode]);
 
@@ -1630,6 +1653,10 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
       ser.current.maLines[idx]?.setData(safeLineData(maData));
       return buildTimeMap(maData);
     });
+    const bollinger = calculateBollingerBands(candles);
+    ser.current.bollingerUpper?.setData(safeLineData(bollinger.map(({ time, upper }) => ({ time, value: upper }))));
+    ser.current.bollingerMiddle?.setData(safeLineData(bollinger.map(({ time, middle }) => ({ time, value: middle }))));
+    ser.current.bollingerLower?.setData(safeLineData(bollinger.map(({ time, lower }) => ({ time, value: lower }))));
 
     // 거래량
     const volData = candles
@@ -2116,6 +2143,15 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
             <span className="legend-swatch" style={{ backgroundColor: MA_COLORS[i] }} />{p}
           </button>
         ))}
+        <button
+          type="button"
+          className={`legend-btn${mainVisible.bollinger ? '' : ' muted'}`}
+          onClick={() => toggleMainVisible('bollinger')}
+          title="20일 이동평균과 표준편차 2배 기준의 볼린저밴드 표시"
+          style={{ color: '#2563eb' }}
+        >
+          <span className="legend-swatch" style={{ backgroundColor: '#2563eb' }} />볼린저밴드
+        </button>
       </div>
 
       {/* 차트 영역 */}
