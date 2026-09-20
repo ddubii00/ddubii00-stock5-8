@@ -959,17 +959,61 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
   const adviceDailySymbolRef = useRef('');
   const streamRef = useRef(null);
 
+  const chartColumnRef = useRef(null);
+  const noteBounds = (size) => {
+    const width = chartColumnRef.current?.clientWidth || 0;
+    const height = chartColumnRef.current?.clientHeight || 0;
+    return {
+      maxX: width ? Math.max(0, width - size.width) : Infinity,
+      maxY: height ? Math.max(38, height - size.height) : Infinity,
+    };
+  };
+  const normalizeNoteSize = (size) => ({
+    width: Math.min(600, Math.max(120, Number(size?.width) || 145)),
+    height: Math.min(400, Math.max(70, Number(size?.height) || 78)),
+  });
+  const normalizeNotePosition = (position, size) => {
+    const bounds = noteBounds(size);
+    return {
+      x: Math.min(bounds.maxX, Math.max(0, Number(position?.x) || 12)),
+      y: Math.min(bounds.maxY, Math.max(38, Number(position?.y) || 58)),
+    };
+  };
+  const openNote = () => {
+    const nextSize = normalizeNoteSize(noteSize);
+    const nextPos = normalizeNotePosition(notePos, nextSize);
+    setNoteSize(nextSize);
+    setNotePos(nextPos);
+    setNoteOpen(true);
+    onMemoChange?.(note, nextPos, nextSize);
+  };
+
   const dragNote = (event) => {
     const start = { x: event.clientX, y: event.clientY, pos: notePos };
     let finalPos = notePos;
-    const move = e => { finalPos = { x: Math.max(0, start.pos.x + e.clientX - start.x), y: Math.max(38, start.pos.y + e.clientY - start.y) }; setNotePos(finalPos); };
+    const move = e => {
+      const bounds = noteBounds(noteSize);
+      finalPos = {
+        x: Math.min(bounds.maxX, Math.max(0, start.pos.x + e.clientX - start.x)),
+        y: Math.min(bounds.maxY, Math.max(38, start.pos.y + e.clientY - start.y)),
+      };
+      setNotePos(finalPos);
+    };
     const end = () => { document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', end); onMemoChange?.(note, finalPos, noteSize); };
     document.addEventListener('mousemove', move); document.addEventListener('mouseup', end);
   };
   const saveNoteSize = (event) => {
-    const next = { width: Math.max(120, event.currentTarget.offsetWidth), height: Math.max(70, event.currentTarget.offsetHeight) };
-    setNoteSize(next); onMemoChange?.(note, notePos, next);
+    const next = normalizeNoteSize({ width: event.currentTarget.offsetWidth, height: event.currentTarget.offsetHeight });
+    const nextPos = normalizeNotePosition(notePos, next);
+    setNoteSize(next); setNotePos(nextPos); onMemoChange?.(note, nextPos, next);
   };
+
+  useEffect(() => { setNote(String(memo || '')); }, [memo]);
+  useEffect(() => {
+    const nextSize = normalizeNoteSize(memoSize);
+    setNoteSize(nextSize);
+    setNotePos(normalizeNotePosition(memoPosition, nextSize));
+  }, [memoPosition?.x, memoPosition?.y, memoSize?.width, memoSize?.height]);
 
   // ① 종목 선택 시 localStorage 저장
   const handleSelect = useCallback(({ symbol: sym, name }) => {
@@ -2055,7 +2099,7 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
 
   // ─── Render ──────────────────────────────────────────
   return (
-    <div className={`chart-column ${marketMode === 'KRX2' ? 'after-hours-mode' : ''}`}>
+    <div ref={chartColumnRef} className={`chart-column ${marketMode === 'KRX2' ? 'after-hours-mode' : ''}`}>
       {/* Header */}
       <div className="column-header">
         <StockSearch onSelect={handleSelect} placeholder="종목/지수 검색 (예: 하이닉스, KOSPI, AAPL, S&P500)..." />
@@ -2076,7 +2120,7 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
               </span>
             )}
             {loading && <span className="loading-dot">●</span>}
-            <button type="button" className="memo-toggle-btn" onClick={() => setNoteOpen(true)}>메모</button>
+            <button type="button" className="memo-toggle-btn" onClick={openNote}>메모</button>
           </div>
         )}
         {error && <div className="error-bar">{error}</div>}
