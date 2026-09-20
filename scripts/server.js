@@ -510,13 +510,29 @@ async function fetchRealtimeQuote(symbol, market = 'regular') {
   const cached = quoteCache.get(cacheKey);
   if (cached && now - cached.ts < 3000) return cached.data;
 
-  const q = await yahooFinance.quote(symbol);
-  const price = q.regularMarketPrice ?? q.postMarketPrice ?? q.preMarketPrice;
-  const previousClose = q.regularMarketPreviousClose;
-  const change = q.regularMarketChange ?? (Number.isFinite(price) && Number.isFinite(previousClose) ? price - previousClose : null);
-  const changePct = q.regularMarketChangePercent ?? (Number.isFinite(change) && Number.isFinite(previousClose) && previousClose !== 0 ? (change / previousClose) * 100 : null);
-  const data = quoteFromValues(price, change, changePct);
-  quoteCache.set(cacheKey, { ts: now, data });
+  let data = null;
+  try {
+    const q = await yahooFinance.quote(symbol);
+    const price = q.regularMarketPrice ?? q.postMarketPrice ?? q.preMarketPrice;
+    const previousClose = q.regularMarketPreviousClose;
+    const change = q.regularMarketChange ?? (Number.isFinite(price) && Number.isFinite(previousClose) ? price - previousClose : null);
+    const changePct = q.regularMarketChangePercent ?? (Number.isFinite(change) && Number.isFinite(previousClose) && previousClose !== 0 ? (change / previousClose) * 100 : null);
+    data = quoteFromValues(price, change, changePct);
+  } catch (e) {
+    console.warn(`Yahoo quote fallback [${symbol}]:`, e.message);
+  }
+  // Yahoo's quote endpoint intermittently omits FX and index prices. Its daily
+  // history remains available, so derive a current/previous-close quote from it.
+  if (!data) {
+    try {
+      const period1 = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000);
+      const chart = await yahooFinance.chart(symbol, { period1, interval: '1d' });
+      data = quoteFromCandles(chart?.quotes || []);
+    } catch (e) {
+      console.warn(`Yahoo history fallback [${symbol}]:`, e.message);
+    }
+  }
+  if (data) quoteCache.set(cacheKey, { ts: now, data });
   return data;
 }
 
