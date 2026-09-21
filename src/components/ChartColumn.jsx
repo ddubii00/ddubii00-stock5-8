@@ -41,6 +41,8 @@ const MA_COLORS  = ['#f59e0b', '#22c55e', '#a855f7', '#06b6d4', '#64748b'];
 const INTRA_INTERVALS = ['1m','3m','5m','15m','30m','60m'];
 const PRICE_SCALE_WIDTH = 92;
 const ICHIMOKU_DISPLACEMENT = 26;
+// Keep a settled recommendation visible while live prices and candles update.
+const ADVICE_REVIEW_INTERVAL_MS = 60 * 60 * 1000;
 
 // ④ 마지막 종가 수평 점선 제거를 위한 헬퍼
 const NO_PRICE_LINE = { priceLineVisible: false, lastValueVisible: false };
@@ -957,6 +959,7 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
   const xhairLock   = useRef(false);
   const inited      = useRef(false);
   const adviceDailySymbolRef = useRef('');
+  const adviceNextReviewAtRef = useRef(0);
   const streamRef = useRef(null);
 
   const chartColumnRef = useRef(null);
@@ -1678,10 +1681,13 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
     // ② null 값 필터링
     const candles = normalizeCandleData(data);
     if (!candles.length) throw new Error('시세 데이터가 비어 있습니다.');
-    const shouldRefreshAdvice = tf.interval === 'day' || adviceDailySymbolRef.current !== sym;
+    const now = Date.now();
+    const symbolChanged = adviceDailySymbolRef.current !== sym;
+    const shouldRefreshAdvice = symbolChanged || now >= adviceNextReviewAtRef.current;
     if (shouldRefreshAdvice) {
       adviceDailySymbolRef.current = sym;
-      setAdvice({ tone: 'neutral', text: '부분매매 신호 계산 중…' });
+      adviceNextReviewAtRef.current = now + ADVICE_REVIEW_INTERVAL_MS;
+      if (symbolChanged) setAdvice({ tone: 'neutral', text: '부분매매 신호 계산 중…' });
       void loadTradingAdvice(sym).then((nextAdvice) => {
         if (adviceDailySymbolRef.current === sym) setAdvice(nextAdvice);
       });
