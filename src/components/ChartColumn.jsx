@@ -870,7 +870,7 @@ const BASE_OPTS = {
   },
 };
 
-export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode = 'KRX', memo = '', memoPosition = { x: 12, y: 58 }, memoSize = { width: 145, height: 78 }, onMemoChange }) {
+export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode = 'KRX', showBollinger = true, memo = '', memoPosition = { x: 12, y: 58 }, memoSize = { width: 145, height: 78 }, onMemoChange }) {
   // ① localStorage로 마지막 선택 종목 복원
   const storageKey = `stock5_symbol_${id}`;
   const storedRaw   = localStorage.getItem(storageKey);
@@ -909,7 +909,6 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
     ma20: true,
     ma60: true,
     ma120: true,
-    bollinger: true,
   });
   const [ichiVisible, setIchiVisible] = useState({
     candle: true,
@@ -1036,10 +1035,13 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
     MA_PERIODS.forEach((period, idx) => {
       ser.current.maLines?.[idx]?.applyOptions({ visible: mainVisible[`ma${period}`] });
     });
-    ser.current.bollingerUpper?.applyOptions({ visible: mainVisible.bollinger });
-    ser.current.bollingerMiddle?.applyOptions({ visible: mainVisible.bollinger });
-    ser.current.bollingerLower?.applyOptions({ visible: mainVisible.bollinger });
   }, [mainVisible]);
+
+  useEffect(() => {
+    ser.current.bollingerUpper?.applyOptions({ visible: showBollinger });
+    ser.current.bollingerMiddle?.applyOptions({ visible: showBollinger });
+    ser.current.bollingerLower?.applyOptions({ visible: showBollinger });
+  }, [showBollinger]);
 
   useEffect(() => {
     ser.current.ichiCandle?.applyOptions({ visible: ichiVisible.candle });
@@ -1207,17 +1209,17 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
     ser.current.bollingerUpper = pc.addSeries(LineSeries, {
       color: '#2563eb', lineWidth: 1, lineStyle: 2, crosshairMarkerVisible: false,
       priceFormat: { type: 'custom', formatter: (price) => formatPriceLabel(price, symbolRef.current) },
-      visible: false, ...NO_PRICE_LINE,
+      visible: showBollinger, ...NO_PRICE_LINE,
     });
     ser.current.bollingerMiddle = pc.addSeries(LineSeries, {
       color: '#2563eb', lineWidth: 1, crosshairMarkerVisible: false,
       priceFormat: { type: 'custom', formatter: (price) => formatPriceLabel(price, symbolRef.current) },
-      visible: false, ...NO_PRICE_LINE,
+      visible: showBollinger, ...NO_PRICE_LINE,
     });
     ser.current.bollingerLower = pc.addSeries(LineSeries, {
       color: '#2563eb', lineWidth: 1, lineStyle: 2, crosshairMarkerVisible: false,
       priceFormat: { type: 'custom', formatter: (price) => formatPriceLabel(price, symbolRef.current) },
-      visible: false, ...NO_PRICE_LINE,
+      visible: showBollinger, ...NO_PRICE_LINE,
     });
 
     ser.current.vol = vc.addSeries(HistogramSeries, {
@@ -2193,15 +2195,6 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
             <span className="legend-swatch" style={{ backgroundColor: MA_COLORS[i] }} />{p}
           </button>
         ))}
-        <button
-          type="button"
-          className={`legend-btn${mainVisible.bollinger ? '' : ' muted'}`}
-          onClick={() => toggleMainVisible('bollinger')}
-          title="20일 이동평균과 표준편차 2배 기준의 볼린저밴드 표시"
-          style={{ color: '#2563eb' }}
-        >
-          <span className="legend-swatch" style={{ backgroundColor: '#2563eb' }} />볼린저밴드
-        </button>
       </div>
 
       {/* 차트 영역 */}

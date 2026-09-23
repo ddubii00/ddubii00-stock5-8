@@ -20,6 +20,7 @@ const MARKET_TILES = [
   { key: 'kosdaq', label: 'KOSDAQ', symbol: '^KQ11' },
   { key: 'usdKrw', label: '환율', symbol: 'KRW=X' },
   { key: 'nasdaq', label: '나스닥', symbol: '^IXIC' },
+  { key: 'sp500', label: 'S&P500', symbol: '^GSPC' },
 ];
 
 function MarketTicker({ label, quote }) {
@@ -247,6 +248,7 @@ export default function App() {
   const [state, setState] = useState(null);
   const [modal, setModal] = useState(false);
   const [marketSummary, setMarketSummary] = useState({});
+  const [showBollinger, setShowBollinger] = useState(true);
 
   const clearAuthentication = useCallback(() => {
     localStorage.removeItem(PASSWORD_STORAGE_KEY);
@@ -340,6 +342,13 @@ export default function App() {
             KRX
           </button>
           <button
+            className={showBollinger ? 'active' : ''}
+            onClick={() => setShowBollinger((visible) => !visible)}
+            title="전체 차트 볼린저밴드 표시"
+          >
+            BB
+          </button>
+          <button
             className={state.mode === 'KRX2' ? 'active' : ''}
             onClick={() => save({ ...state, mode: 'KRX2' })}
           >
@@ -362,6 +371,7 @@ export default function App() {
                   defaultSymbol={item.symbol}
                   defaultName={item.name}
                   marketMode={state.mode}
+                  showBollinger={showBollinger}
                   memo={item.memo}
                   memoPosition={item.memoPosition}
                   memoSize={item.memoSize}
