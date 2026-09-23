@@ -14,6 +14,9 @@ const PASSWORD_STORAGE_KEY = `${APP_ID}-password`;
 const signed = (v, suffix = '') => Number.isFinite(Number(v))
   ? `${Number(v) > 0 ? '+' : ''}${Number(v).toLocaleString('ko-KR', { maximumFractionDigits: 2 })}${suffix}`
   : '-';
+const marketSigned = (v, suffix = '') => Number.isFinite(Number(v))
+  ? `${Number(v) > 0 ? '+' : ''}${Number(v).toLocaleString('ko-KR', { maximumFractionDigits: 1 })}${suffix}`
+  : '-';
 
 const MARKET_TILES = [
   { key: 'kospi', label: 'KOSPI', symbol: '^KS11' },
@@ -28,9 +31,9 @@ function MarketTicker({ label, quote }) {
   return (
     <span className={`market-item ${tone}`}>
       <span>{label}</span>
-      <strong className="market-price">{quote ? signed(quote.price) : '-'}</strong>
+      <strong className="market-price">{quote ? marketSigned(quote.price) : '-'}</strong>
       <span className="market-change">
-        {quote && Number.isFinite(Number(quote.changePct)) ? `(${signed(quote.changePct, '%')})` : ''}
+        {quote && Number.isFinite(Number(quote.changePct)) ? `(${marketSigned(quote.changePct, '%')})` : ''}
       </span>
     </span>
   );
@@ -336,17 +339,17 @@ export default function App() {
 
         <div className="header-actions">
           <button
-            className={state.mode === 'KRX' ? 'active' : ''}
-            onClick={() => save({ ...state, mode: 'KRX' })}
-          >
-            KRX
-          </button>
-          <button
             className={showBollinger ? 'active' : ''}
             onClick={() => setShowBollinger((visible) => !visible)}
             title="전체 차트 볼린저밴드 표시"
           >
             BB
+          </button>
+          <button
+            className={state.mode === 'KRX' ? 'active' : ''}
+            onClick={() => save({ ...state, mode: 'KRX' })}
+          >
+            KRX
           </button>
           <button
             className={state.mode === 'KRX2' ? 'active' : ''}
