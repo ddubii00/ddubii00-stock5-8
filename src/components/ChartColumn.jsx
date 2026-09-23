@@ -909,7 +909,7 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
     ma20: true,
     ma60: true,
     ma120: true,
-    bollinger: false,
+    bollinger: true,
   });
   const [ichiVisible, setIchiVisible] = useState({
     candle: true,
