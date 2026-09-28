@@ -489,7 +489,7 @@ function marketHolidaySet(year, symbol) {
       '2026-03-02',
       '2026-05-25',
       '2026-08-17',
-      '2026-09-24', '2026-09-25', '2026-09-28',
+      '2026-09-24', '2026-09-25',
       '2026-10-05',
     ].forEach(date => holidays.add(date));
     return holidays;
@@ -525,6 +525,105 @@ function filterDailyTradingCandles(candles, symbol, tf) {
     const date = typeof candle.time === 'string' ? candle.time.slice(0, 10) : null;
     return date ? !isClosedDailyDate(date, symbol) : true;
   });
+}
+
+function currentMarketDate(symbol) {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: symbolTimeZone(symbol),
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+}
+
+function overlayCurrentDailyCandle(candles, quoteData, symbol, tf) {
+  if (!isKoreanSymbol(symbol) || tf?.interval !== 'day') {
+    return candles;
+  }
+
+  const price = Number(quoteData?.price);
+  if (!Number.isFinite(price)) return candles;
+
+  const today = currentMarketDate(symbol);
+
+  if (isClosedDailyDate(today, symbol)) {
+    return candles;
+  }
+
+  const next = [...(candles || [])];
+  const last = next[next.length - 1];
+
+  const lastDate =
+    typeof last?.time === 'string'
+      ? last.time.slice(0, 10)
+      : '';
+
+  const quoteOpen = Number(quoteData?.open);
+  const quoteHigh = Number(quoteData?.high);
+  const quoteLow = Number(quoteData?.low);
+  const quoteVolume = Number(quoteData?.volume);
+
+  if (lastDate === today) {
+    const open = Number.isFinite(Number(last?.open))
+      ? Number(last.open)
+      : Number.isFinite(quoteOpen)
+        ? quoteOpen
+        : price;
+
+    const oldHigh = Number.isFinite(Number(last?.high))
+      ? Number(last.high)
+      : open;
+
+    const oldLow = Number.isFinite(Number(last?.low))
+      ? Number(last.low)
+      : open;
+
+    next[next.length - 1] = {
+      ...last,
+      open,
+      high: Math.max(
+        oldHigh,
+        price,
+        Number.isFinite(quoteHigh) ? quoteHigh : price
+      ),
+      low: Math.min(
+        oldLow,
+        price,
+        Number.isFinite(quoteLow) ? quoteLow : price
+      ),
+      close: price,
+      ...(Number.isFinite(quoteVolume)
+        ? { volume: quoteVolume }
+        : {}),
+    };
+
+    return next;
+  }
+
+  if (lastDate && lastDate > today) {
+    return next;
+  }
+
+  const open = Number.isFinite(quoteOpen)
+    ? quoteOpen
+    : price;
+
+  next.push({
+    time: today,
+    open,
+    high: Number.isFinite(quoteHigh)
+      ? Math.max(quoteHigh, open, price)
+      : Math.max(open, price),
+    low: Number.isFinite(quoteLow)
+      ? Math.min(quoteLow, open, price)
+      : Math.min(open, price),
+    close: price,
+    volume: Number.isFinite(quoteVolume)
+      ? quoteVolume
+      : 0,
+  });
+
+  return next;
 }
 
 function nextTradingDateString(time, symbol) {
@@ -660,15 +759,56 @@ function buildQuoteFromCandles(candles) {
   return { price, change, changePct };
 }
 
-function buildQuoteFromIntradayPrice(price, dailyCandles) {
+function buildQuoteFromIntradayPrice(price, dailyCandles, symbol) {
   const latestPrice = Number(price);
   if (!Number.isFinite(latestPrice)) return null;
-  const valid = (dailyCandles || []).filter(candle => Number.isFinite(candle?.close));
-  const previous = valid.length >= 2 ? valid[valid.length - 2] : valid[0];
-  const previousClose = previous ? Number(previous.close) : null;
-  const change = Number.isFinite(previousClose) ? latestPrice - previousClose : null;
-  const changePct = Number.isFinite(previousClose) && previousClose !== 0 ? (change / previousClose) * 100 : null;
-  return { price: latestPrice, change, changePct };
+
+  const valid = (dailyCandles || []).filter(
+    candle => Number.isFinite(candle?.close)
+  );
+
+  if (!valid.length) {
+    return { price: latestPrice, change: null, changePct: null };
+  }
+
+  const today = new Intl.DateTimeFormat('en-CA', {
+    timeZone: symbolTimeZone(symbol),
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+
+  const latest = valid[valid.length - 1];
+
+  const latestDate =
+    typeof latest?.time === 'string'
+      ? latest.time.slice(0, 10)
+      : '';
+
+  const previous =
+    latestDate === today && valid.length >= 2
+      ? valid[valid.length - 2]
+      : latest;
+
+  const previousClose = previous
+    ? Number(previous.close)
+    : null;
+
+  const change = Number.isFinite(previousClose)
+    ? latestPrice - previousClose
+    : null;
+
+  const changePct =
+    Number.isFinite(previousClose) && previousClose !== 0
+      ? (change / previousClose) * 100
+      : null;
+
+  return {
+    price: latestPrice,
+    previousClose,
+    change,
+    changePct,
+  };
 }
 
 function kstDatePartsFromNow() {
@@ -1653,7 +1793,7 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
         const minuteData = await minuteResponse.json();
         const minuteCandles = normalizeCandleData(minuteData);
         const latestMinute = minuteCandles[minuteCandles.length - 1];
-        nextQuote = buildQuoteFromIntradayPrice(latestMinute?.close, candles) || nextQuote;
+        nextQuote = buildQuoteFromIntradayPrice(latestMinute?.close, candles, sym) || nextQuote;
       }
     }
 
@@ -1681,8 +1821,37 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
     }
 
     // ② null 값 필터링
-    const candles = normalizeCandleData(data);
+    let candles = normalizeCandleData(data);
     if (!candles.length) throw new Error('시세 데이터가 비어 있습니다.');
+
+    if (isKoreanSymbol(sym) && tf?.interval === 'day') {
+      try {
+        const quoteMarket =
+          marketMode === 'KRX2'
+            ? '&market=after'
+            : '';
+
+        const currentResponse = await fetch(
+          apiUrl(
+            `/quote?symbol=${encodeURIComponent(sym)}${quoteMarket}`
+          )
+        );
+
+        if (currentResponse.ok) {
+          const currentQuote =
+            await currentResponse.json();
+
+          candles = overlayCurrentDailyCandle(
+            candles,
+            currentQuote,
+            sym,
+            tf
+          );
+        }
+      } catch {
+        // 현재가 조회 실패 시 기존 OHLCV 유지
+      }
+    }
     const now = Date.now();
     const symbolChanged = adviceDailySymbolRef.current !== sym;
     const shouldRefreshAdvice = symbolChanged || now >= adviceNextReviewAtRef.current;
@@ -1798,12 +1967,52 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
       return;
     }
 
-    const candles = filterDailyTradingCandles(
-      filterKoreanRegularIntraday(normalizeCandleData(data), sym, tf),
+    let candles = filterDailyTradingCandles(
+      filterKoreanRegularIntraday(
+        normalizeCandleData(data),
+        sym,
+        tf
+      ),
       sym,
       tf
     );
-    if (!candles.length) throw new Error('일목균형표 데이터가 비어 있습니다.');
+
+    if (!candles.length) {
+      throw new Error('일목균형표 데이터가 비어 있습니다.');
+    }
+
+    if (isKoreanSymbol(sym) && tf?.interval === 'day') {
+      try {
+        const quoteMarket =
+          marketMode === 'KRX2'
+            ? '&market=after'
+            : '';
+
+        const currentResponse = await fetch(
+          apiUrl(
+            `/quote?symbol=${encodeURIComponent(sym)}${quoteMarket}`
+          ),
+          { signal }
+        );
+
+        if (currentResponse.ok) {
+          const currentQuote =
+            await currentResponse.json();
+
+          candles = overlayCurrentDailyCandle(
+            candles,
+            currentQuote,
+            sym,
+            tf
+          );
+        }
+      } catch (error) {
+        if (error?.name === 'AbortError') {
+          throw error;
+        }
+      }
+    }
+
     const ichi = calculateIchimoku(candles);
     const visibleCount = Math.min(Math.max(Number(lim) || ichiLimit, 1), candles.length);
     const projectedTimes = buildProjectedTimes(candles, tf, sym, ICHIMOKU_DISPLACEMENT + 2);
