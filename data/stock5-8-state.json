@@ -1,0 +1,1076 @@
+{
+  "mode": "KRX",
+  "items": [
+    {
+      "id": "2c81aaa3-5452-40bd-96f1-7e0f06be02b0",
+      "symbol": "000660.KS",
+      "name": "SK하이닉스",
+      "exchange": "",
+      "type": "",
+      "group": "1. 롱 보유",
+      "memo": "Core 종목.",
+      "memoPosition": {
+        "x": 449,
+        "y": 38
+      },
+      "memoSize": {
+        "width": 171,
+        "height": 99
+      }
+    },
+    {
+      "id": "3fcddbf7-946a-4829-91b5-5a154534b362",
+      "symbol": "005930.KS",
+      "name": "삼성전자",
+      "exchange": "",
+      "type": "",
+      "group": "1. 롱 보유",
+      "memo": "ㅇㅇㅇ\nㅇ\nㅇ\n",
+      "memoPosition": {
+        "x": 455,
+        "y": 43
+      },
+      "memoSize": {
+        "width": 165,
+        "height": 117
+      }
+    },
+    {
+      "id": "a0a8c733-b32c-4909-92c0-de1c8392d94c",
+      "symbol": "005935.KS",
+      "name": "삼성전자우",
+      "exchange": "",
+      "type": "",
+      "group": "1. 롱 보유",
+      "memo": "9.22. 고점까지 대기",
+      "memoPosition": {
+        "x": 475,
+        "y": 38
+      },
+      "memoSize": {
+        "width": 145,
+        "height": 78
+      }
+    },
+    {
+      "id": "fe9937f7-0a2c-4eff-a2cf-adf8a3c19197",
+      "symbol": "000990.KS",
+      "name": "DB하이텍",
+      "exchange": "",
+      "type": "",
+      "group": "1. 롱 보유",
+      "memo": "9.22. 고점까지 대기",
+      "memoPosition": {
+        "x": 474,
+        "y": 38
+      },
+      "memoSize": {
+        "width": 145,
+        "height": 78
+      }
+    },
+    {
+      "id": "453b808c-943a-47eb-8d17-ba78b2d45cc0",
+      "symbol": "375500.KS",
+      "name": "DL이앤씨",
+      "exchange": "",
+      "type": "",
+      "group": "1. 롱 보유",
+      "memo": "9.22. 눌림목 진입중   추가 매수 예정",
+      "memoPosition": {
+        "x": 475,
+        "y": 51
+      },
+      "memoSize": {
+        "width": 145,
+        "height": 78
+      }
+    },
+    {
+      "id": "21b7a902-c782-40bd-80b9-1c04295e507e",
+      "symbol": "018670.KS",
+      "name": "SK가스",
+      "exchange": "",
+      "type": "",
+      "group": "1. 롱 보유",
+      "memo": "9.22. 반등 목하면 매도. ",
+      "memoPosition": {
+        "x": 475,
+        "y": 49
+      },
+      "memoSize": {
+        "width": 145,
+        "height": 78
+      }
+    },
+    {
+      "id": "694c2489-a67b-4a81-b62a-6d73dc5cb4bd",
+      "symbol": "034020.KS",
+      "name": "두산에너빌리티",
+      "exchange": "",
+      "type": "",
+      "group": "1. 롱 보유",
+      "memo": "9.22. 눌림목 완성. 대기하자",
+      "memoPosition": {
+        "x": 475,
+        "y": 62
+      },
+      "memoSize": {
+        "width": 145,
+        "height": 78
+      }
+    },
+    {
+      "id": "fc639f94-bc26-4962-85a5-f7cd59c1df7f",
+      "symbol": "036930.KQ",
+      "name": "주성엔지니어링",
+      "exchange": "",
+      "type": "",
+      "group": "1. 롱 보유",
+      "memo": "9.22. 이평선 따라 완만히 상승. 대기",
+      "memoPosition": {
+        "x": 472,
+        "y": 38
+      },
+      "memoSize": {
+        "width": 145,
+        "height": 78
+      }
+    },
+    {
+      "id": "a60fe5f7-2909-45d2-8125-9161aaf7b4df",
+      "symbol": "028050.KS",
+      "name": "삼성E&A",
+      "exchange": "",
+      "type": "",
+      "group": "1. 롱 보유",
+      "memo": "9.22. 상승추세. 대기하자.",
+      "memoPosition": {
+        "x": 475,
+        "y": 51
+      },
+      "memoSize": {
+        "width": 145,
+        "height": 78
+      }
+    },
+    {
+      "id": "3f4666ae-ea95-40a5-99bc-d357d1c4bf06",
+      "symbol": "001820.KS",
+      "name": "삼화콘덴서",
+      "exchange": "",
+      "type": "",
+      "group": "1. 롱 보유",
+      "memo": "9.22. 이평선따라 완만히 상승",
+      "memoPosition": {
+        "x": 475,
+        "y": 38
+      },
+      "memoSize": {
+        "width": 145,
+        "height": 78
+      }
+    },
+    {
+      "id": "d52dfd89-b195-4404-9b4d-2fdc532dda30",
+      "symbol": "240810.KQ",
+      "name": "원익IPS",
+      "exchange": "",
+      "type": "",
+      "group": "1. 롱 보유",
+      "memo": "9.22. 고점까지 대기",
+      "memoPosition": {
+        "x": 475,
+        "y": 69
+      },
+      "memoSize": {
+        "width": 145,
+        "height": 78
+      }
+    },
+    {
+      "id": "ad7cc253-5c99-411d-823d-3608c8f05694",
+      "symbol": "039030.KQ",
+      "name": "이오테크닉스",
+      "exchange": "",
+      "type": "",
+      "group": "1. 롱 보유",
+      "memo": "9.22. 상승추세. 대기하자.",
+      "memoPosition": {
+        "x": 475,
+        "y": 45
+      },
+      "memoSize": {
+        "width": 145,
+        "height": 78
+      }
+    },
+    {
+      "id": "e2d9ef99-87d7-409b-90dc-5045009ece7e",
+      "symbol": "003620.KS",
+      "name": "KG모빌리티",
+      "exchange": "",
+      "type": "",
+      "group": "2. 숏 보유",
+      "memo": "9.22. 이평선 따라 하락 중. 추매 ",
+      "memoPosition": {
+        "x": 475,
+        "y": 38
+      },
+      "memoSize": {
+        "width": 145,
+        "height": 78
+      }
+    },
+    {
+      "id": "aa4f2fb6-0906-48f0-be36-b2d3ccfc8361",
+      "symbol": "035420.KS",
+      "name": "NAVER",
+      "exchange": "",
+      "type": "",
+      "group": "2. 숏 보유",
+      "memo": "9.22. 하락중 반등. 또 반등하면 손절",
+      "memoPosition": {
+        "x": 475,
+        "y": 38
+      },
+      "memoSize": {
+        "width": 145,
+        "height": 78
+      }
+    },
+    {
+      "id": "947a8a74-341c-49a1-8fe4-67089e3f56e4",
+      "symbol": "326030.KS",
+      "name": "SK바이오팜",
+      "exchange": "",
+      "type": "",
+      "group": "2. 숏 보유",
+      "memo": "9.22. 이평선 따라 하락. 대기.",
+      "memoPosition": {
+        "x": 475,
+        "y": 59
+      },
+      "memoSize": {
+        "width": 145,
+        "height": 78
+      }
+    },
+    {
+      "id": "99283fe2-2977-4649-b56c-f7b7c54873e2",
+      "symbol": "073240.KS",
+      "name": "금호타이어",
+      "exchange": "",
+      "type": "",
+      "group": "2. 숏 보유",
+      "memo": "",
+      "memoPosition": {
+        "x": 475,
+        "y": 38
+      },
+      "memoSize": {
+        "width": 145,
+        "height": 78
+      }
+    },
+    {
+      "id": "e9dbfdf4-b215-466a-851e-1c89eac44697",
+      "symbol": "000270.KS",
+      "name": "기아",
+      "exchange": "",
+      "type": "",
+      "group": "2. 숏 보유",
+      "memo": "9.22. 이평선 따라 하락중. 대기.",
+      "memoPosition": {
+        "x": 475,
+        "y": 38
+      },
+      "memoSize": {
+        "width": 145,
+        "height": 78
+      }
+    },
+    {
+      "id": "83cbec48-2095-4e34-8a96-8ca1d7eece8b",
+      "symbol": "281740.KQ",
+      "name": "레이크머티리얼즈",
+      "exchange": "",
+      "type": "",
+      "group": "2. 숏 보유",
+      "memo": "9.22. 이평선 따라 하락중",
+      "memoPosition": {
+        "x": 475,
+        "y": 52
+      },
+      "memoSize": {
+        "width": 145,
+        "height": 78
+      }
+    },
+    {
+      "id": "7b6d6ee8-1a1a-4122-951f-3f7d2338b944",
+      "symbol": "071320.KS",
+      "name": "지역난방공사",
+      "exchange": "",
+      "type": "",
+      "group": "1. 롱 보유",
+      "memo": "9.22. 상승초입. ",
+      "memoPosition": {
+        "x": 465,
+        "y": 38
+      },
+      "memoSize": {
+        "width": 145,
+        "height": 78
+      }
+    },
+    {
+      "id": "de163c0f-23f4-4836-917d-b5edf4d9971d",
+      "symbol": "086790.KS",
+      "name": "하나금융지주",
+      "exchange": "",
+      "type": "",
+      "group": "1. 롱 보유",
+      "memo": "9.22 눌림목 마무리. 반등 확인",
+      "memoPosition": {
+        "x": 475,
+        "y": 38
+      },
+      "memoSize": {
+        "width": 145,
+        "height": 78
+      }
+    },
+    {
+      "id": "62b8563f-74b0-4345-bccd-9741fa3e4d65",
+      "symbol": "052690.KS",
+      "name": "한전기술",
+      "exchange": "",
+      "type": "",
+      "group": "1. 롱 보유",
+      "memo": "9.22. 눌림목 반등 확인. 대기",
+      "memoPosition": {
+        "x": 475,
+        "y": 38
+      },
+      "memoSize": {
+        "width": 145,
+        "height": 78
+      }
+    },
+    {
+      "id": "cd8065df-97fc-4fce-adb4-bc8d85e408d4",
+      "symbol": "105560.KS",
+      "name": "KB금융",
+      "exchange": "",
+      "type": "",
+      "group": "1. 롱 보유",
+      "memo": "",
+      "memoPosition": {
+        "x": 475,
+        "y": 38
+      },
+      "memoSize": {
+        "width": 145,
+        "height": 78
+      }
+    },
+    {
+      "id": "2b92e72e-c0e7-44e3-a0bf-3e7ca5627409",
+      "symbol": "004170.KS",
+      "name": "신세계",
+      "exchange": "",
+      "type": "",
+      "group": "2. 숏 보유",
+      "memo": "9.22. 이평선 따라 하락 추세. 반등의 기세가 보임. 반등 확인되면 청산",
+      "memoPosition": {
+        "x": 475,
+        "y": 57
+      },
+      "memoSize": {
+        "width": 145,
+        "height": 78
+      }
+    },
+    {
+      "id": "80c29fa5-0ee7-4494-8f99-d47521b998c5",
+      "symbol": "196170.KQ",
+      "name": "알테오젠",
+      "exchange": "",
+      "type": "",
+      "group": "2. 숏 보유",
+      "memo": "9.22. 이평선 따라 하락중. 대기",
+      "memoPosition": {
+        "x": 475,
+        "y": 65
+      },
+      "memoSize": {
+        "width": 145,
+        "height": 78
+      }
+    },
+    {
+      "id": "f1f1b5fa-0d4e-4272-a67c-effd8cd2d5c3",
+      "symbol": "247540.KQ",
+      "name": "에코프로비엠",
+      "exchange": "",
+      "type": "",
+      "group": "2. 숏 보유",
+      "memo": "9.22. 반등 초기. 다음날에도 반등시 청산",
+      "memoPosition": {
+        "x": 475,
+        "y": 64
+      },
+      "memoSize": {
+        "width": 145,
+        "height": 78
+      }
+    },
+    {
+      "id": "7475f4d6-31c0-41ba-8cbd-7e5354f66106",
+      "symbol": "035720.KS",
+      "name": "카카오",
+      "exchange": "",
+      "type": "",
+      "group": "2. 숏 보유",
+      "memo": "9.22. 반등이 나왔네. 내일도 반등이면 청산",
+      "memoPosition": {
+        "x": 475,
+        "y": 38
+      },
+      "memoSize": {
+        "width": 145,
+        "height": 78
+      }
+    },
+    {
+      "id": "69d80807-1d78-43d3-b7b1-60fb17d2c545",
+      "symbol": "377300.KS",
+      "name": "카카오페이",
+      "exchange": "",
+      "type": "",
+      "group": "2. 숏 보유",
+      "memo": "9.22. 별로 안좋네. 오늘 반등. 내일도 반등이면 청산",
+      "memoPosition": {
+        "x": 475,
+        "y": 38
+      },
+      "memoSize": {
+        "width": 145,
+        "height": 78
+      }
+    },
+    {
+      "id": "9e4c782c-5631-4112-b30a-75efd4a27f7e",
+      "symbol": "214150.KQ",
+      "name": "클래시스",
+      "exchange": "",
+      "type": "",
+      "group": "2. 숏 보유",
+      "memo": "9.22. 이평선 따라 잘 하락중. 대기.",
+      "memoPosition": {
+        "x": 475,
+        "y": 57
+      },
+      "memoSize": {
+        "width": 145,
+        "height": 78
+      }
+    },
+    {
+      "id": "ec38259a-ae6f-4dcb-b22c-32dce4bb76e2",
+      "symbol": "034230.KS",
+      "name": "파라다이스",
+      "exchange": "",
+      "type": "",
+      "group": "2. 숏 보유",
+      "memo": "9.22. 이평선 따라 하락 중. 추매",
+      "memoPosition": {
+        "x": 475,
+        "y": 38
+      },
+      "memoSize": {
+        "width": 145,
+        "height": 78
+      }
+    },
+    {
+      "id": "8e826e6f-966f-4efa-9657-5195d8acc0d1",
+      "symbol": "214450.KQ",
+      "name": "파마리서치",
+      "exchange": "",
+      "type": "",
+      "group": "2. 숏 보유",
+      "memo": "9.22.청산함.",
+      "memoPosition": {
+        "x": 475,
+        "y": 38
+      },
+      "memoSize": {
+        "width": 145,
+        "height": 78
+      }
+    },
+    {
+      "id": "10f1a0d4-881e-4801-aaff-666f38b20319",
+      "symbol": "263750.KQ",
+      "name": "펄어비스",
+      "exchange": "",
+      "type": "",
+      "group": "2. 숏 보유",
+      "memo": "",
+      "memoPosition": {
+        "x": 475,
+        "y": 38
+      },
+      "memoSize": {
+        "width": 145,
+        "height": 78
+      }
+    },
+    {
+      "id": "bd28487a-b5be-4cb9-b827-9b00882fb120",
+      "symbol": "000080.KS",
+      "name": "하이트진로",
+      "exchange": "",
+      "type": "",
+      "group": "2. 숏 보유",
+      "memo": "9.22. 약한 반등이 나옴. 내일도 반등이면 청산.",
+      "memoPosition": {
+        "x": 475,
+        "y": 38
+      },
+      "memoSize": {
+        "width": 145,
+        "height": 78
+      }
+    },
+    {
+      "id": "38ec4402-5e71-4a43-89c4-64688b1eac17",
+      "symbol": "460930.KQ",
+      "name": "현대힘스",
+      "exchange": "",
+      "type": "",
+      "group": "2. 숏 보유",
+      "memo": "",
+      "memoPosition": {
+        "x": 475,
+        "y": 38
+      },
+      "memoSize": {
+        "width": 145,
+        "height": 78
+      }
+    },
+    {
+      "id": "34abb078-f334-4802-99a0-059d71350056",
+      "symbol": "008770.KS",
+      "name": "호텔신라",
+      "exchange": "",
+      "type": "",
+      "group": "2. 숏 보유",
+      "memo": "9.22. 이평선 따라 하락중. 대기하자.",
+      "memoPosition": {
+        "x": 475,
+        "y": 55
+      },
+      "memoSize": {
+        "width": 145,
+        "height": 78
+      }
+    },
+    {
+      "id": "8a135a2d-a217-44cc-8c0f-522bfb826d69",
+      "symbol": "243070.KQ",
+      "name": "휴온스",
+      "exchange": "",
+      "type": "",
+      "group": "2. 숏 보유",
+      "memo": "9.22. 이평선 따라 하락중.  다음날 급락 나오면 익절. ",
+      "memoPosition": {
+        "x": 475,
+        "y": 64
+      },
+      "memoSize": {
+        "width": 145,
+        "height": 78
+      }
+    },
+    {
+      "id": "bfe39f2a-c623-4811-b1cb-c505b27db4f6",
+      "symbol": "120110.KS",
+      "name": "코오롱인더",
+      "exchange": "",
+      "type": "",
+      "group": "3. 롱 관심",
+      "memo": "",
+      "memoPosition": {
+        "x": 722,
+        "y": 54
+      },
+      "memoSize": {
+        "width": 145,
+        "height": 78
+      }
+    },
+    {
+      "id": "f6ea1259-7db6-4f3f-a109-bf93de3bbb41",
+      "symbol": "001060.KS",
+      "name": "JW중외제약",
+      "exchange": "",
+      "type": "",
+      "group": "3. 롱 관심",
+      "memo": "",
+      "memoPosition": {
+        "x": 740,
+        "y": 48
+      },
+      "memoSize": {
+        "width": 145,
+        "height": 78
+      }
+    },
+    {
+      "id": "d699ffdc-ec42-4851-aacd-a0a0284fc5e8",
+      "symbol": "031210.KS",
+      "name": "서울보증보험",
+      "exchange": "",
+      "type": "",
+      "group": "4. 숏 관심",
+      "memo": "",
+      "memoPosition": {
+        "x": 745,
+        "y": 59
+      },
+      "memoSize": {
+        "width": 145,
+        "height": 78
+      }
+    },
+    {
+      "id": "1e05ca3e-98f3-4d52-9e5c-b14f85a9a310",
+      "symbol": "058470.KQ",
+      "name": "리노공업",
+      "exchange": "",
+      "type": "",
+      "group": "3. 롱 관심",
+      "memo": "",
+      "memoPosition": {
+        "x": 475,
+        "y": 38
+      },
+      "memoSize": {
+        "width": 145,
+        "height": 78
+      }
+    },
+    {
+      "id": "5fff9f06-3671-40ef-9027-cd1343eb8179",
+      "symbol": "222800.KQ",
+      "name": "심텍",
+      "exchange": "",
+      "type": "",
+      "group": "3. 롱 관심",
+      "memo": "",
+      "memoPosition": {
+        "x": 475,
+        "y": 38
+      },
+      "memoSize": {
+        "width": 145,
+        "height": 78
+      }
+    },
+    {
+      "id": "ec961f25-051a-4ab7-98bc-5846e901b6ee",
+      "symbol": "003490.KS",
+      "name": "대한항공",
+      "exchange": "",
+      "type": "",
+      "group": "3. 롱 관심",
+      "memo": "",
+      "memoPosition": {
+        "x": 475,
+        "y": 38
+      },
+      "memoSize": {
+        "width": 145,
+        "height": 78
+      }
+    },
+    {
+      "id": "5bf20175-35c0-4250-85cb-94df51b0e3bf",
+      "symbol": "016360.KS",
+      "name": "삼성증권",
+      "exchange": "",
+      "type": "",
+      "group": "3. 롱 관심",
+      "memo": "",
+      "memoPosition": {
+        "x": 475,
+        "y": 38
+      },
+      "memoSize": {
+        "width": 145,
+        "height": 78
+      }
+    },
+    {
+      "id": "947a5200-21b0-44a4-8130-1d9183723be7",
+      "symbol": "001440.KS",
+      "name": "대한전선",
+      "exchange": "",
+      "type": "",
+      "group": "3. 롱 관심",
+      "memo": "",
+      "memoPosition": {
+        "x": 475,
+        "y": 38
+      },
+      "memoSize": {
+        "width": 145,
+        "height": 78
+      }
+    },
+    {
+      "id": "d92b4004-9012-4ff0-859e-8f0a927908d7",
+      "symbol": "009150.KS",
+      "name": "삼성전기",
+      "exchange": "",
+      "type": "",
+      "group": "3. 롱 관심",
+      "memo": "",
+      "memoPosition": {
+        "x": 475,
+        "y": 38
+      },
+      "memoSize": {
+        "width": 145,
+        "height": 78
+      }
+    },
+    {
+      "id": "15d18d84-a3f3-4f38-b537-d9c50021075b",
+      "symbol": "^KS11",
+      "name": "KOSPI 종합",
+      "exchange": "",
+      "type": "",
+      "group": "3. 롱 관심",
+      "memo": "",
+      "memoPosition": {
+        "x": 475,
+        "y": 38
+      },
+      "memoSize": {
+        "width": 145,
+        "height": 78
+      }
+    },
+    {
+      "id": "38c108fc-7007-4f42-a9b8-af89a38c2822",
+      "symbol": "092790.KS",
+      "name": "넥스틸",
+      "exchange": "",
+      "type": "",
+      "group": "3. 롱 관심",
+      "memo": "",
+      "memoPosition": {
+        "x": 475,
+        "y": 38
+      },
+      "memoSize": {
+        "width": 145,
+        "height": 78
+      }
+    },
+    {
+      "id": "a38de29d-f286-43d4-ad7d-56d70b148b47",
+      "symbol": "331740.KQ",
+      "name": "아우토크립트",
+      "exchange": "",
+      "type": "",
+      "group": "4. 숏 관심",
+      "memo": "",
+      "memoPosition": {
+        "x": 475,
+        "y": 38
+      },
+      "memoSize": {
+        "width": 145,
+        "height": 78
+      }
+    },
+    {
+      "id": "f3d30728-5e73-46de-823a-95777f5b1e5f",
+      "symbol": "051910.KS",
+      "name": "LG화학",
+      "exchange": "",
+      "type": "",
+      "group": "4. 숏 관심",
+      "memo": "",
+      "memoPosition": {
+        "x": 475,
+        "y": 38
+      },
+      "memoSize": {
+        "width": 145,
+        "height": 78
+      }
+    },
+    {
+      "id": "6821c1c2-c34d-42a3-aaea-0ac12c5d2ef7",
+      "symbol": "210980.KS",
+      "name": "SK디앤디",
+      "exchange": "",
+      "type": "",
+      "group": "4. 숏 관심",
+      "memo": "",
+      "memoPosition": {
+        "x": 475,
+        "y": 47
+      },
+      "memoSize": {
+        "width": 145,
+        "height": 78
+      }
+    },
+    {
+      "id": "3774dffa-cca9-428b-b0a9-eb09dcb53798",
+      "symbol": "336570.KQ",
+      "name": "원텍",
+      "exchange": "",
+      "type": "",
+      "group": "4. 숏 관심",
+      "memo": "",
+      "memoPosition": {
+        "x": 475,
+        "y": 38
+      },
+      "memoSize": {
+        "width": 145,
+        "height": 78
+      }
+    },
+    {
+      "id": "ec334dc0-fbfc-4a3c-8243-c17b4d55e097",
+      "symbol": "103590.KS",
+      "name": "일진전기",
+      "exchange": "",
+      "type": "",
+      "group": "3. 롱 관심",
+      "memo": "",
+      "memoPosition": {
+        "x": 475,
+        "y": 38
+      },
+      "memoSize": {
+        "width": 145,
+        "height": 78
+      }
+    },
+    {
+      "id": "019d99e7-d67d-4126-b6b8-7510e9a8b92b",
+      "symbol": "077500.KS",
+      "name": "유니퀘스트",
+      "exchange": "",
+      "type": "",
+      "group": "3. 롱 관심",
+      "memo": "",
+      "memoPosition": {
+        "x": 475,
+        "y": 38
+      },
+      "memoSize": {
+        "width": 145,
+        "height": 78
+      }
+    },
+    {
+      "id": "deccab90-c986-4791-bf56-78fe230abfaa",
+      "symbol": "060280.KQ",
+      "name": "큐렉소",
+      "exchange": "",
+      "type": "",
+      "group": "4. 숏 관심",
+      "memo": "",
+      "memoPosition": {
+        "x": 475,
+        "y": 38
+      },
+      "memoSize": {
+        "width": 145,
+        "height": 78
+      }
+    },
+    {
+      "id": "9f34396d-acbf-4a72-942d-c37abe86513d",
+      "symbol": "009830.KS",
+      "name": "한화솔루션",
+      "exchange": "",
+      "type": "",
+      "group": "4. 숏 관심",
+      "memo": "",
+      "memoPosition": {
+        "x": 12,
+        "y": 58
+      },
+      "memoSize": {
+        "width": 145,
+        "height": 78
+      }
+    },
+    {
+      "id": "68812521-3115-4944-8e09-c819c0a18447",
+      "symbol": "352820.KS",
+      "name": "하이브",
+      "exchange": "",
+      "type": "",
+      "group": "4. 숏 관심",
+      "memo": "",
+      "memoPosition": {
+        "x": 12,
+        "y": 58
+      },
+      "memoSize": {
+        "width": 145,
+        "height": 78
+      }
+    },
+    {
+      "id": "82632711-c4a6-4905-8780-0d235817afb5",
+      "symbol": "161390.KS",
+      "name": "한국타이어앤테크놀로지",
+      "exchange": "",
+      "type": "",
+      "group": "4. 숏 관심",
+      "memo": "",
+      "memoPosition": {
+        "x": 12,
+        "y": 58
+      },
+      "memoSize": {
+        "width": 145,
+        "height": 78
+      }
+    },
+    {
+      "id": "f790d09c-6eb5-4377-9255-3412207d8f58",
+      "symbol": "347850.KQ",
+      "name": "디앤디파마텍",
+      "exchange": "",
+      "type": "",
+      "group": "4. 숏 관심",
+      "memo": "",
+      "memoPosition": {
+        "x": 12,
+        "y": 58
+      },
+      "memoSize": {
+        "width": 145,
+        "height": 78
+      }
+    },
+    {
+      "id": "844f4c2b-f24a-4825-827d-f75ccca0023d",
+      "symbol": "5819.KL",
+      "name": "HLBANK",
+      "exchange": "",
+      "type": "",
+      "group": "4. 숏 관심",
+      "memo": "",
+      "memoPosition": {
+        "x": 12,
+        "y": 58
+      },
+      "memoSize": {
+        "width": 145,
+        "height": 78
+      }
+    },
+    {
+      "id": "75a8b37a-aca1-4f2b-826a-4f8ed3140c7e",
+      "symbol": "087010.KQ",
+      "name": "펩트론",
+      "exchange": "",
+      "type": "",
+      "group": "4. 숏 관심",
+      "memo": "",
+      "memoPosition": {
+        "x": 12,
+        "y": 58
+      },
+      "memoSize": {
+        "width": 145,
+        "height": 78
+      }
+    },
+    {
+      "id": "c2e160f8-6124-454b-a190-9c25ecd7c57f",
+      "symbol": "141080.KQ",
+      "name": "리가켐바이오",
+      "exchange": "",
+      "type": "",
+      "group": "4. 숏 관심",
+      "memo": "",
+      "memoPosition": {
+        "x": 12,
+        "y": 58
+      },
+      "memoSize": {
+        "width": 145,
+        "height": 78
+      }
+    },
+    {
+      "id": "d8269efd-c932-4541-a745-1d92ff9ef5c0",
+      "symbol": "084370.KQ",
+      "name": "유진테크",
+      "exchange": "",
+      "type": "",
+      "group": "3. 롱 관심",
+      "memo": "",
+      "memoPosition": {
+        "x": 12,
+        "y": 58
+      },
+      "memoSize": {
+        "width": 145,
+        "height": 78
+      }
+    },
+    {
+      "id": "cf6f58c5-0798-4cc4-9c8e-ae86f4f3c414",
+      "symbol": "010950.KS",
+      "name": "S-Oil",
+      "exchange": "",
+      "type": "",
+      "group": "3. 롱 관심",
+      "memo": "",
+      "memoPosition": {
+        "x": 12,
+        "y": 58
+      },
+      "memoSize": {
+        "width": 145,
+        "height": 78
+      }
+    },
+    {
+      "id": "28013e34-acc9-47b0-afce-5eabe86dd8bf",
+      "symbol": "003160.KS",
+      "name": "디아이",
+      "exchange": "",
+      "type": "",
+      "group": "3. 롱 관심",
+      "memo": "",
+      "memoPosition": {
+        "x": 12,
+        "y": 58
+      },
+      "memoSize": {
+        "width": 145,
+        "height": 78
+      }
+    }
+  ]
+}

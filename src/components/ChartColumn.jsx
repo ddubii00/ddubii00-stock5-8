@@ -53,19 +53,23 @@ function isIntradayTf(tf) {
 
 function requestLimit(tf, baseLimit) {
   if (isIntradayTf(tf)) {
-    const buffer = 1200;
-    return Math.min(Math.max(baseLimit + buffer, baseLimit * 4, 240), 2000);
+    return Math.min(Math.max(baseLimit + 120, 300), 800);
   }
-  if (tf?.interval === 'week') return Math.min(Math.max(baseLimit + 160, baseLimit * 2), 400);
-  const buffer = 720;
-  return Math.min(Math.max(baseLimit + buffer, baseLimit * 4), 2000);
+  if (tf?.interval === 'week' || tf?.interval === 'month') {
+    return Math.min(Math.max(baseLimit + 80, 240), 300);
+  }
+  return Math.min(Math.max(baseLimit + 180, 300), 600);
 }
 
 function ichimokuRequestLimit(tf, baseLimit) {
   const minHistory = baseLimit + 52 + ICHIMOKU_DISPLACEMENT * 2;
-  if (tf?.interval === 'week') return Math.min(Math.max(minHistory + 40, baseLimit * 2), 400);
-  if (!isIntradayTf(tf)) return Math.min(Math.max(minHistory + 360, baseLimit * 5), 2000);
-  return Math.min(Math.max(minHistory + 1800, baseLimit * 12), 2000);
+  if (tf?.interval === 'week' || tf?.interval === 'month') {
+    return Math.min(Math.max(minHistory + 40, 240), 300);
+  }
+  if (!isIntradayTf(tf)) {
+    return Math.min(Math.max(minHistory + 80, 300), 600);
+  }
+  return Math.min(Math.max(minHistory + 120, 360), 800);
 }
 
 function isKoreanSymbol(symbol) {
@@ -2101,23 +2105,6 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
     return () => controller.abort();
   }, [symbol, ichiTf, ichiLimit, loadVersion, ichiLoadVersion, fetchIchi]);
 
-  // The first weekly switch should hit warm server data instead of waiting for
-  // the upstream provider. This runs after the initial charts are ready and is
-  // cancelled when the card changes symbol or unmounts.
-  useEffect(() => {
-    if (!symbol || !chartsReady) return undefined;
-    const controller = new AbortController();
-    const timer = setTimeout(() => {
-      fetch(apiUrl(`/ohlcv?symbol=${encodeURIComponent(symbol)}&interval=week&limit=300`), {
-        signal: controller.signal,
-      }).catch(() => {});
-    }, 500);
-    return () => {
-      clearTimeout(timer);
-      controller.abort();
-    };
-  }, [symbol, chartsReady]);
-
   useEffect(() => {
     if (!charts.current.price) return;
     const intraMain = isIntradayTf(mainTf);
@@ -2143,7 +2130,7 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
           return;
         }
         updateQuote();
-      }, isKoreanSymbol(symbol) ? 700 : 3000);
+      }, 10_000);
     }
 
     return () => {
@@ -2191,8 +2178,9 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
   useEffect(() => {
     if (!symbol || !chartsReady) return;
     const isIntra = INTRA_INTERVALS.includes(mainTf.interval);
-    const ms = isIntra ? (isKoreanSymbol(symbol) ? 1000 : 3000) : 5000;
+    const ms = isIntra ? 10_000 : 30_000;
     const t = setInterval(() => {
+      if (document.hidden) return;
       // Naver 분봉은 정규장까지만 제공하므로 장후에는 KIS WebSocket 캔들을 유지한다.
       const afterHours = marketMode === 'KRX2' && isKoreanSymbol(symbol) && !isRegularMarketOpen(symbol);
       if (isMarketUpdateWindow(symbol, marketMode) && !afterHours) fetchMain(symbol, mainTf, limit, { followLatest: isIntra }).catch(() => {});
@@ -2203,9 +2191,10 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
   useEffect(() => {
     if (!symbol || !chartsReady) return;
     const isIntra = INTRA_INTERVALS.includes(ichiTf.interval);
-    const ms = isIntra ? (isKoreanSymbol(symbol) ? 1000 : 3000) : ichiTf.interval === 'day' ? 10_000 : 60_000;
+    const ms = isIntra ? 10_000 : ichiTf.interval === 'day' ? 30_000 : 60_000;
     const controller = new AbortController();
     const t = setInterval(() => {
+      if (document.hidden) return;
       const afterHours = marketMode === 'KRX2' && isKoreanSymbol(symbol) && !isRegularMarketOpen(symbol);
       if (isMarketUpdateWindow(symbol, marketMode) && !afterHours) {
         const requestSeq = ++ichiRequestSeqRef.current;

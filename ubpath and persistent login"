@@ -1,0 +1,140 @@
+[1mdiff --git a/src/App.jsx b/src/App.jsx[m
+[1mindex 47cf5e8..5750bd4 100644[m
+[1m--- a/src/App.jsx[m
+[1m+++ b/src/App.jsx[m
+[36m@@ -9,23 +9,23 @@[m [mconst signed = (v, suffix = '') => Number.isFinite(Number(v)) ? `${Number(v) > 0[m
+ [m
+ function Login({ onLogin }) {[m
+   const [password, setPassword] = useState(''); const [error, setError] = useState('');[m
+[31m-  const submit = async e => { e.preventDefault(); setError(''); const r = await fetch('/api/state', { headers: { 'x-stock5-password': password } }); if (!r.ok) return setError('비밀번호를 확인해 주세요.'); sessionStorage.setItem('stock5-8-password', password); onLogin(password, await r.json()); };[m
+[32m+[m[32m  const submit = async e => { e.preventDefault(); setError(''); const r = await fetch('api/state', { headers: { 'x-stock5-password': password } }); if (!r.ok) return setError('비밀번호를 확인해 주세요.'); localStorage.setItem('stock5-8-password', password); onLogin(password, await r.json()); };[m
+   return <main className="login-page"><form className="login-card" onSubmit={submit}><h1>stock5-8</h1><p>관심종목과 메모는 모든 기기에서 공유됩니다.</p><input autoFocus type="password" inputMode="numeric" placeholder="비밀번호" value={password} onChange={e => setPassword(e.target.value)} /><button>입장</button>{error && <small>{error}</small>}</form></main>;[m
+ }[m
+ [m
+ function WatchlistModal({ state, onChange, onClose }) {[m
+   const [group, setGroup] = useState(GROUPS[0]); const [quotes, setQuotes] = useState({});[m
+   const add = stock => { if (!state.items.some(item => item.symbol === stock.symbol)) onChange({ ...state, items: [...state.items, { ...stock, id: crypto.randomUUID(), group, memo: '', memoPosition: { x: 12, y: 58 } }] }); };[m
+[31m-  useEffect(() => { state.items.forEach(item => fetch(`/api/quote?symbol=${encodeURIComponent(item.symbol)}`).then(r => r.ok ? r.json() : null).then(q => q && setQuotes(old => ({ ...old, [item.symbol]: q })))); }, [state.items]);[m
+[32m+[m[32m  useEffect(() => { state.items.forEach(item => fetch(`api/quote?symbol=${encodeURIComponent(item.symbol)}`).then(r => r.ok ? r.json() : null).then(q => q && setQuotes(old => ({ ...old, [item.symbol]: q })))); }, [state.items]);[m
+   const reorder = (e, targetId) => { e.preventDefault(); const id = e.dataTransfer.getData('stock-id'); if (!id || id === targetId) return; const next = [...state.items]; const from = next.findIndex(x => x.id === id); const to = next.findIndex(x => x.id === targetId); next.splice(to, 0, next.splice(from, 1)[0]); onChange({ ...state, items: next }); };[m
+   return <div className="modal-backdrop"><section className="watchlist-modal"><header><div><h2>종목</h2><p>카테고리별 순서가 차트 순서입니다.</p></div><button className="close-button" onClick={onClose}>닫기</button></header><div className="category-tabs">{GROUPS.map(name => <button className={group === name ? 'active' : ''} key={name} onClick={() => setGroup(name)}>{name}</button>)}</div><StockSearch onSelect={add} placeholder="한국·미국·일본 종목 또는 지수 검색 (예: 삼전, AAPL, Nikkei)" />{GROUPS.map(name => <div className="watch-group" key={name}><h3>{name}</h3>{state.items.filter(item => item.group === name).map(item => { const q = quotes[item.symbol]; return <div className="watch-row" key={item.id} draggable onDragStart={e => e.dataTransfer.setData('stock-id', item.id)} onDragOver={e => e.preventDefault()} onDrop={e => reorder(e, item.id)}><span className="drag-handle">⠿</span><div><b>{item.name}</b><small>{item.symbol}</small></div><div className={`watch-quote ${(q?.change || 0) >= 0 ? 'up' : 'down'}`}>{q ? <><b>{signed(q.price)}</b><small>{signed(q.change)} ({signed(q.changePct, '%')})</small></> : <small>시세 불러오는 중</small>}</div><button className="remove-button" title={`${item.name} 삭제`} onClick={() => onChange({ ...state, items: state.items.filter(row => row.id !== item.id) })}>×</button></div>; })}</div>)}</section></div>;[m
+ }[m
+ [m
+ export default function App() {[m
+   const [password, setPassword] = useState(''); const [state, setState] = useState(null); const [modal, setModal] = useState(false); const [saving, setSaving] = useState(false);[m
+[31m-  const save = useCallback(async next => { setState(next); setSaving(true); try { await fetch('/api/state', { method: 'PUT', headers: { 'Content-Type': 'application/json', 'x-stock5-password': password }, body: JSON.stringify(next) }); } finally { setSaving(false); } }, [password]);[m
+[32m+[m[32m  const save = useCallback(async next => { setState(next); setSaving(true); try { await fetch('api/state', { method: 'PUT', headers: { 'Content-Type': 'application/json', 'x-stock5-password': password }, body: JSON.stringify(next) }); } finally { setSaving(false); } }, [password]);[m
+   const login = (pw, initial) => { setPassword(pw); setState({ ...DEFAULT_STATE, ...initial, items: initial.items || [] }); };[m
+[31m-  useEffect(() => { const pw = sessionStorage.getItem('stock5-8-password'); if (pw) fetch('/api/state', { headers: { 'x-stock5-password': pw } }).then(r => r.ok ? r.json() : Promise.reject()).then(data => login(pw, data)).catch(() => sessionStorage.removeItem('stock5-8-password')); }, []);[m
+[32m+[m[32m  useEffect(() => { const pw = localStorage.getItem('stock5-8-password'); if (pw) fetch('api/state', { headers: { 'x-stock5-password': pw } }).then(r => r.ok ? r.json() : Promise.reject()).then(data => login(pw, data)).catch(() => localStorage.removeItem('stock5-8-password')); }, []);[m
+   if (!state) return <Login onLogin={login} />;[m
+   const ordered = GROUPS.flatMap(group => state.items.filter(item => item.group === group));[m
+   return <div className="app"><header className="app-header"><strong className="app-title">stock5-8</strong><div className="header-actions"><button className={state.mode === 'KRX' ? 'active' : ''} onClick={() => save({ ...state, mode: 'KRX' })}>KRX</button><button className={state.mode === 'KRX2' ? 'active' : ''} onClick={() => save({ ...state, mode: 'KRX2' })}>KRX 장후</button><button onClick={() => setModal(true)}>종목</button><span className="save-state">{saving ? '저장 중…' : '공유 저장됨'}</span></div></header>{ordered.length ? <div className="dashboard-grid watch-dashboard">{ordered.map(item => <div className="watch-chart" key={item.id}><div className="watch-category">{item.group}</div><ChartColumn id={`watch-${item.id}`} defaultSymbol={item.symbol} defaultName={item.name} marketMode={state.mode} memo={item.memo} memoPosition={item.memoPosition} onMemoChange={(memo, memoPosition) => save({ ...state, items: state.items.map(row => row.id === item.id ? { ...row, memo, memoPosition } : row) })} /></div>)}</div> : <main className="empty-state"><h2>관심 종목을 추가하세요</h2><p>상단의 ‘종목’ 버튼에서 카테고리를 고르고 종목·지수를 검색할 수 있습니다.</p><button onClick={() => setModal(true)}>종목 추가</button></main>}{modal && <WatchlistModal state={state} onChange={save} onClose={() => setModal(false)} />}</div>;[m
+[1mdiff --git a/src/components/ChartColumn.jsx b/src/components/ChartColumn.jsx[m
+[1mindex cdfbc15..70203b3 100644[m
+[1m--- a/src/components/ChartColumn.jsx[m
+[1m+++ b/src/components/ChartColumn.jsx[m
+[36m@@ -1507,7 +1507,7 @@[m [mexport default function ChartColumn({ id, defaultSymbol, defaultName, marketMode[m
+ [m
+   const fetchQuote = useCallback(async (sym, signal) => {[m
+     if (!sym) return;[m
+[31m-    const quoteResponse = await fetch(`/api/quote?symbol=${encodeURIComponent(sym)}`, { signal });[m
+[32m+[m[32m    const quoteResponse = await fetch(`api/quote?symbol=${encodeURIComponent(sym)}`, { signal });[m
+     const quoteContentType = quoteResponse.headers.get('content-type') || '';[m
+     if (quoteResponse.ok && quoteContentType.includes('application/json')) {[m
+       const quoteData = await quoteResponse.json();[m
+[36m@@ -1518,7 +1518,7 @@[m [mexport default function ChartColumn({ id, defaultSymbol, defaultName, marketMode[m
+     }[m
+ [m
+     const realtimeKorean = isKoreanSymbol(sym) && isMarketUpdateWindow(sym);[m
+[31m-    const dailyUrl = `/api/ohlcv?symbol=${encodeURIComponent(sym)}&interval=day&limit=6`;[m
+[32m+[m[32m    const dailyUrl = `api/ohlcv?symbol=${encodeURIComponent(sym)}&interval=day&limit=6`;[m
+     const response = await fetch(dailyUrl, { signal });[m
+     const contentType = response.headers.get('content-type') || '';[m
+     if (!response.ok || !contentType.includes('application/json')) return;[m
+[36m@@ -1527,7 +1527,7 @@[m [mexport default function ChartColumn({ id, defaultSymbol, defaultName, marketMode[m
+ [m
+     let nextQuote = buildQuoteFromCandles(candles);[m
+     if (realtimeKorean) {[m
+[31m-      const minuteResponse = await fetch(`/api/ohlcv?symbol=${encodeURIComponent(sym)}&interval=1m&limit=5`, { signal });[m
+[32m+[m[32m      const minuteResponse = await fetch(`api/ohlcv?symbol=${encodeURIComponent(sym)}&interval=1m&limit=5`, { signal });[m
+       const minuteContentType = minuteResponse.headers.get('content-type') || '';[m
+       if (minuteResponse.ok && minuteContentType.includes('application/json')) {[m
+         const minuteData = await minuteResponse.json();[m
+[36m@@ -1544,7 +1544,7 @@[m [mexport default function ChartColumn({ id, defaultSymbol, defaultName, marketMode[m
+   const fetchMain = useCallback(async (sym, tf, lim, { followLatest = false } = {}) => {[m
+     if (!sym || !ser.current.candle) return;[m
+     const viewKey = `${sym}:${tf.interval}:${lim}`;[m
+[31m-    const r    = await fetch(`/api/ohlcv?symbol=${encodeURIComponent(sym)}&interval=${tf.interval}&limit=${requestLimit(tf, lim)}`);[m
+[32m+[m[32m    const r    = await fetch(`api/ohlcv?symbol=${encodeURIComponent(sym)}&interval=${tf.interval}&limit=${requestLimit(tf, lim)}`);[m
+     const contentType = r.headers.get('content-type') || '';[m
+     if (!r.ok) {[m
+       const body = contentType.includes('application/json') ? await r.json().catch(() => null) : await r.text();[m
+[36m@@ -1631,7 +1631,7 @@[m [mexport default function ChartColumn({ id, defaultSymbol, defaultName, marketMode[m
+ [m
+   const fetchIchi = useCallback(async (sym, tf, lim) => {[m
+     if (!sym || !ser.current.ichiCandle) return;[m
+[31m-    const r    = await fetch(`/api/ohlcv?symbol=${encodeURIComponent(sym)}&interval=${tf.interval}&limit=${ichimokuRequestLimit(tf, lim)}`);[m
+[32m+[m[32m    const r    = await fetch(`api/ohlcv?symbol=${encodeURIComponent(sym)}&interval=${tf.interval}&limit=${ichimokuRequestLimit(tf, lim)}`);[m
+     const contentType = r.headers.get('content-type') || '';[m
+     if (!r.ok) {[m
+       const body = contentType.includes('application/json') ? await r.json().catch(() => null) : await r.text();[m
+[36m@@ -1784,7 +1784,7 @@[m [mexport default function ChartColumn({ id, defaultSymbol, defaultName, marketMode[m
+ [m
+   useEffect(() => {[m
+     if (!symbol || !chartsReady || !supportsKisRealtimeStream(symbol)) return undefined;[m
+[31m-    const stream = new EventSource(`/api/stream/quote?symbol=${encodeURIComponent(symbol)}`);[m
+[32m+[m[32m    const stream = new EventSource(`api/stream/quote?symbol=${encodeURIComponent(symbol)}`);[m
+ [m
+     const handleQuote = (event) => {[m
+       try {[m
+[36m@@ -1887,7 +1887,7 @@[m [mexport default function ChartColumn({ id, defaultSymbol, defaultName, marketMode[m
+     try {[m
+       const images = await captureChartSet();[m
+ [m
+[31m-      const response = await fetch('/api/analyze', {[m
+[32m+[m[32m      const response = await fetch('api/analyze', {[m
+         method: 'POST',[m
+         headers: { 'Content-Type': 'application/json' },[m
+         body: JSON.stringify({[m
+[1mdiff --git a/src/components/StockSearch.jsx b/src/components/StockSearch.jsx[m
+[1mindex 8a5855a..0d4921a 100644[m
+[1m--- a/src/components/StockSearch.jsx[m
+[1m+++ b/src/components/StockSearch.jsx[m
+[36m@@ -29,7 +29,7 @@[m [mexport default function StockSearch({ onSelect, placeholder }) {[m
+     }[m
+     setLoading(true);[m
+     try {[m
+[31m-      const res = await fetch(`/api/search?q=${encodeURIComponent(q.trim())}`);[m
+[32m+[m[32m      const res = await fetch(`api/search?q=${encodeURIComponent(q.trim())}`);[m
+       const contentType = res.headers.get('content-type') || '';[m
+       if (!res.ok) {[m
+         const body = contentType.includes('application/json') ? await res.json().catch(() => null) : await res.text();[m
+[1mdiff --git a/vite.config.js b/vite.config.js[m
+[1mindex 744cf36..c0fd70f 100644[m
+[1m--- a/vite.config.js[m
+[1m+++ b/vite.config.js[m
+[36m@@ -1,12 +1,16 @@[m
+[31m-import { defineConfig } from 'vite'[m
+[32m+[m[32mimport { defineConfig, loadEnv } from 'vite'[m
+ import react from '@vitejs/plugin-react'[m
+ [m
+[31m-// https://vite.dev/config/[m
+[31m-export default defineConfig({[m
+[31m-  plugins: [react()],[m
+[31m-  server: {[m
+[31m-    proxy: {[m
+[31m-      '/api': 'http://localhost:3001'[m
+[32m+[m[32mexport default defineConfig(({ mode }) => {[m
+[32m+[m[32m  const env = loadEnv(mode, process.cwd(), '')[m
+[32m+[m
+[32m+[m[32m  return {[m
+[32m+[m[32m    base: env.VITE_BASE_PATH || '/',[m
+[32m+[m[32m    plugins: [react()],[m
+[32m+[m[32m    server: {[m
+[32m+[m[32m      proxy: {[m
+[32m+[m[32m        '/api': 'http://localhost:3001'[m
+[32m+[m[32m      }[m
+     }[m
+   }[m
+ })[m
