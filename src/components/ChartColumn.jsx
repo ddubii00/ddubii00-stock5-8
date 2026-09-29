@@ -43,6 +43,8 @@ const PRICE_SCALE_WIDTH = 92;
 const ICHIMOKU_DISPLACEMENT = 26;
 // Keep a settled recommendation visible while live prices and candles update.
 const ADVICE_REVIEW_INTERVAL_MS = 60 * 60 * 1000;
+// Charts intentionally use REST only. Keep every card on the same, modest cadence.
+const CHART_POLL_INTERVAL_MS = 10_000;
 
 // ④ 마지막 종가 수평 점선 제거를 위한 헬퍼
 const NO_PRICE_LINE = { priceLineVisible: false, lastValueVisible: false };
@@ -84,13 +86,6 @@ function isIndexSymbol(symbol) {
   return String(symbol || '').startsWith('^');
 }
 
-function supportsKisRealtimeStream(symbol) {
-  const value = String(symbol || '').toUpperCase();
-  if (isKoreanSymbol(value)) return true;
-  if (value === '^KS11' || value === '^KQ11') return true;
-  return Boolean(value) && !value.startsWith('^') && !value.includes('=');
-}
-
 function symbolTimeZone(symbol) {
   return isKoreanMarketSymbol(symbol) ? 'Asia/Seoul' : 'America/New_York';
 }
@@ -126,8 +121,7 @@ function isMarketUpdateWindow(symbol, marketMode = 'KRX') {
   return minutes >= 9 * 60 + 30 && minutes <= 16 * 60;
 }
 
-function marketStateLabel(symbol, marketMode, realtimeStatus) {
-  if (realtimeStatus === 'waiting') return '실시간 재연결 대기';
+function marketStateLabel(symbol, marketMode) {
   if (isRegularMarketOpen(symbol)) return '실시간';
   if (marketMode === 'KRX2' && isKoreanMarketSymbol(symbol)) return '장후 포함';
   return '종가';
@@ -815,38 +809,6 @@ function buildQuoteFromIntradayPrice(price, dailyCandles, symbol) {
   };
 }
 
-function kstDatePartsFromNow() {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'Asia/Seoul',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(new Date());
-  return {
-    year: Number(parts.find(p => p.type === 'year')?.value),
-    month: Number(parts.find(p => p.type === 'month')?.value),
-    day: Number(parts.find(p => p.type === 'day')?.value),
-  };
-}
-
-function realtimeBarTime(quote, tf) {
-  const tradeTime = String(quote?.tradeTime || '').padStart(6, '0');
-  if (!/^\d{6}$/.test(tradeTime) || !isIntradayTf(tf)) return null;
-  const tradeDate = String(quote?.tradeDate || '');
-  const fallback = kstDatePartsFromNow();
-  const year = /^\d{8}$/.test(tradeDate) ? Number(tradeDate.slice(0, 4)) : fallback.year;
-  const month = /^\d{8}$/.test(tradeDate) ? Number(tradeDate.slice(4, 6)) : fallback.month;
-  const day = /^\d{8}$/.test(tradeDate) ? Number(tradeDate.slice(6, 8)) : fallback.day;
-  const hour = Number(tradeTime.slice(0, 2));
-  const minute = Number(tradeTime.slice(2, 4));
-  const second = Number(tradeTime.slice(4, 6));
-  if (![year, month, day, hour, minute, second].every(Number.isFinite)) return null;
-
-  const utcSeconds = Math.floor(Date.UTC(year, month - 1, day, hour - 9, minute, second) / 1000);
-  const step = barSeconds(tf.interval);
-  return Math.floor(utcSeconds / step) * step;
-}
-
 function renderInlineMarkdown(text, keyPrefix) {
   const parts = String(text || '').split(/(\*\*[^*]+?\*\*|\*[^*\n]+?\*)/g);
   return parts.map((part, index) => {
@@ -1036,7 +998,6 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
   const [analysisResult, setAnalysisResult] = useState('');
   const [analysisFontSize, setAnalysisFontSize] = useState(15);
   const [quote, setQuote] = useState(null);
-  const [realtimeStatus, setRealtimeStatus] = useState('idle');
   const [copyStatus, setCopyStatus] = useState('');
   const [chartsReady, setChartsReady] = useState(false);
   const [advice, setAdvice] = useState({ tone: 'neutral', text: '차트 데이터를 불러오는 중…' });
@@ -1103,8 +1064,6 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
   const inited      = useRef(false);
   const adviceDailySymbolRef = useRef('');
   const adviceNextReviewAtRef = useRef(0);
-  const streamRef = useRef(null);
-
   const chartColumnRef = useRef(null);
   const noteBounds = (size) => {
     const width = chartColumnRef.current?.clientWidth || 0;
@@ -1674,93 +1633,6 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
     chart.timeScale().subscribeVisibleTimeRangeChange(paint);
   }, []);
 
-  const applyRealtimeQuote = useCallback((quoteData) => {
-    const activeSymbol = symbolRef.current;
-    if (!activeSymbol || !quoteData || !Number.isFinite(Number(quoteData.price))) return;
-    // KRX regular mode freezes at the official 15:30 close. After-market ticks
-    // are accepted only after the user explicitly selects KRX 장후.
-    if (marketMode === 'KRX' && isKoreanSymbol(activeSymbol) && !isRegularMarketOpen(activeSymbol)) return;
-    setRealtimeStatus('live');
-    setQuote({ ...quoteData, symbol: activeSymbol });
-
-    if (!isIntradayTf(mainTf) || !ser.current.candle) return;
-    const barTime = realtimeBarTime(quoteData, mainTf);
-    if (!barTime) return;
-
-    const candles = [...mainCandlesRef.current];
-    const price = Number(quoteData.price);
-    const tradeVolume = Number(quoteData.tradeVolume);
-    const last = candles[candles.length - 1];
-    if (!last || barTime < Number(last.time)) return;
-
-    if (barTime === Number(last.time)) {
-      const nextVolume = Number.isFinite(tradeVolume)
-        ? (Number(last.volume) || 0) + tradeVolume
-        : last.volume;
-      candles[candles.length - 1] = {
-        ...last,
-        high: Math.max(last.high, price),
-        low: Math.min(last.low, price),
-        close: price,
-        volume: nextVolume,
-      };
-    } else {
-      candles.push({
-        time: barTime,
-        open: price,
-        high: price,
-        low: price,
-        close: price,
-        volume: Number.isFinite(tradeVolume) ? tradeVolume : 0,
-      });
-    }
-
-    mainCandlesRef.current = candles;
-    ser.current.candle.setData(candles);
-    crosshairValueMapsRef.current.candle = new Map(candles.map(d => [timeKey(d.time), d.close]));
-
-    const volData = candles.map((d, i) => {
-      const currentVolume = +d.volume;
-      const previousVolume = candles[i - 1]?.volume;
-      if (!Number.isFinite(currentVolume)) return { time: d.time };
-      return {
-        time: d.time,
-        value: currentVolume,
-        color: volumeColorByChange(currentVolume, previousVolume),
-      };
-    });
-    mainVolumeRef.current = volData;
-    ser.current.vol?.setData(volData);
-    crosshairValueMapsRef.current.volume = new Map(volData.filter(d => Number.isFinite(d.value)).map(d => [timeKey(d.time), d.value]));
-
-    const macd = calculateMACD(candles);
-    macdDataRef.current = macd;
-    const macdHistData = macd.map(d => (
-      Number.isFinite(d.histogram)
-        ? { time: d.time, value: d.histogram, color: d.histogram >= 0 ? '#ef5350' : '#1565c0' }
-        : { time: d.time }
-    ));
-    ser.current.macdHist?.setData(macdHistData);
-    ser.current.macdLine?.setData(macd.map(d => (
-      Number.isFinite(d.macd) ? { time: d.time, value: d.macd } : { time: d.time }
-    )));
-    ser.current.signal?.setData(macd.map(d => (
-      Number.isFinite(d.signal) ? { time: d.time, value: d.signal } : { time: d.time }
-    )));
-    crosshairValueMapsRef.current.macd = new Map(macdHistData.filter(d => Number.isFinite(d.value)).map(d => [timeKey(d.time), d.value]));
-
-    maMaps.current = MA_PERIODS.map((period, idx) => {
-      const maData = calculateMA(candles, period);
-      ser.current.maLines[idx]?.setData(safeLineData(maData));
-      return buildTimeMap(maData);
-    });
-    const bollinger = calculateBollingerBands(candles);
-    ser.current.bollingerUpper?.setData(safeLineData(bollinger.map(({ time, upper }) => ({ time, value: upper }))));
-    ser.current.bollingerMiddle?.setData(safeLineData(bollinger.map(({ time, middle }) => ({ time, value: middle }))));
-    ser.current.bollingerLower?.setData(safeLineData(bollinger.map(({ time, lower }) => ({ time, value: lower }))));
-    drawMacdBackground();
-  }, [drawMacdBackground, mainTf, marketMode]);
-
   const fetchQuote = useCallback(async (sym, signal) => {
     if (!sym) return;
     const market = marketMode === 'KRX2' && isKoreanSymbol(sym) ? '&market=after' : '';
@@ -2130,7 +2002,7 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
           return;
         }
         updateQuote();
-      }, 10_000);
+      }, CHART_POLL_INTERVAL_MS);
     }
 
     return () => {
@@ -2139,59 +2011,21 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
     };
   }, [symbol, chartsReady, fetchQuote, marketMode]);
 
-  useEffect(() => {
-    if (!symbol || !chartsReady || !supportsKisRealtimeStream(symbol)) return undefined;
-    if (streamRef.current) streamRef.current.close();
-    const statusTimer = setTimeout(() => setRealtimeStatus('connecting'), 0);
-    const stream = new EventSource(apiUrl(`/stream/quote?symbol=${encodeURIComponent(symbol)}`));
-    streamRef.current = stream;
-
-    const handleQuote = (event) => {
-      try {
-        const payload = JSON.parse(event.data);
-        if (payload?.quote) applyRealtimeQuote(payload.quote);
-      } catch (e) {
-        console.warn('Realtime quote parse failed:', e);
-      }
-    };
-    const handleReady = (event) => {
-      try { setRealtimeStatus(JSON.parse(event.data)?.realtimeStatus || 'connecting'); } catch { setRealtimeStatus('connecting'); }
-    };
-
-    stream.addEventListener('quote', handleQuote);
-    stream.addEventListener('ready', handleReady);
-    stream.onerror = () => {
-      // REST quote data stays visible while EventSource performs its own retry.
-      setRealtimeStatus('waiting');
-    };
-
-    return () => {
-      stream.removeEventListener('quote', handleQuote);
-      stream.removeEventListener('ready', handleReady);
-      stream.close();
-      clearTimeout(statusTimer);
-      if (streamRef.current === stream) streamRef.current = null;
-    };
-  }, [symbol, chartsReady, applyRealtimeQuote]);
-
-  // ⑧ 실시간 업데이트: 최신 캔들을 3초마다 따라가게 갱신
+  // REST polling keeps quote, candle, and Ichimoku updates in sync.
   useEffect(() => {
     if (!symbol || !chartsReady) return;
     const isIntra = INTRA_INTERVALS.includes(mainTf.interval);
-    const ms = isIntra ? 10_000 : 30_000;
     const t = setInterval(() => {
       if (document.hidden) return;
-      // Naver 분봉은 정규장까지만 제공하므로 장후에는 KIS WebSocket 캔들을 유지한다.
+      // 장후 분봉은 별도 장후 REST 데이터가 필요하므로 정규장 데이터만 갱신한다.
       const afterHours = marketMode === 'KRX2' && isKoreanSymbol(symbol) && !isRegularMarketOpen(symbol);
       if (isMarketUpdateWindow(symbol, marketMode) && !afterHours) fetchMain(symbol, mainTf, limit, { followLatest: isIntra }).catch(() => {});
-    }, ms);
+    }, CHART_POLL_INTERVAL_MS);
     return () => clearInterval(t);
   }, [symbol, mainTf, limit, chartsReady, fetchMain, marketMode]);
 
   useEffect(() => {
     if (!symbol || !chartsReady) return;
-    const isIntra = INTRA_INTERVALS.includes(ichiTf.interval);
-    const ms = isIntra ? 10_000 : ichiTf.interval === 'day' ? 30_000 : 60_000;
     const controller = new AbortController();
     const t = setInterval(() => {
       if (document.hidden) return;
@@ -2200,7 +2034,7 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
         const requestSeq = ++ichiRequestSeqRef.current;
         fetchIchi(symbol, ichiTf, ichiLimit, { signal: controller.signal, requestSeq }).catch(() => {});
       }
-    }, ms);
+    }, CHART_POLL_INTERVAL_MS);
     return () => {
       clearInterval(t);
       controller.abort();
@@ -2322,7 +2156,7 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
                     ({formatSignedPercent(quote.changePct)}, {formatSignedValue(quote.change, '', quoteValueDigits(symbol))})
                   </span>
                 )}
-                <span className="quote-state">{marketStateLabel(symbol, marketMode, realtimeStatus)}</span>
+                <span className="quote-state">{marketStateLabel(symbol, marketMode)}</span>
               </span>
             )}
             {loading && <span className="loading-dot">●</span>}
