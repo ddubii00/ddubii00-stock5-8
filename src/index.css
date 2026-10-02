@@ -45,9 +45,10 @@ html, body {
 .watchlist-modal { background: #fff; width: min(700px, 100%); max-height: min(850px, 92vh); overflow: auto; border-radius: 12px; padding: 18px; box-shadow: 0 20px 60px rgba(0,0,0,.25); }
 .watchlist-modal header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
 .watchlist-modal header p { color: var(--muted); font-size: 12px; }
+.watchlist-modal > .search-wrapper { position: sticky; top: 0; z-index: 1200; padding: 6px 0; background: #fff; }
 .close-button, .remove-button { border: 0; background: transparent; cursor: pointer; color: var(--muted); }
 .category-tabs { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 10px; }
-.watch-group { margin-top: 16px; }.watch-group h3 { font-size: 13px; margin-bottom: 5px; }
+.watch-group { margin-top: 16px; content-visibility: auto; contain-intrinsic-size: auto 220px; }.watch-group h3 { font-size: 13px; margin-bottom: 5px; }
 .watch-row { display: grid; grid-template-columns: 18px 1fr auto 28px; align-items: center; gap: 8px; padding: 8px; border: 1px solid var(--border); border-radius: 6px; margin-top: 4px; background: var(--panel2); cursor: grab; }
 .watch-row small, .watch-row b { display: block; }.watch-row small { font-size: 11px; color: var(--muted); }.drag-handle { color: #94a3b8; }.watch-quote { text-align: right; font-variant-numeric: tabular-nums; }.watch-quote.up { color: var(--up); }.watch-quote.down { color: var(--dn); }.remove-button { font-size: 22px; line-height: 1; }
 .chart-column { position: relative; }.signal-advice { margin: 4px 7px 0; font-size: 11px; font-weight: 600; padding: 3px 6px; border-radius: 4px; }.signal-advice.sell { color: #1d4ed8; background: #eff6ff; border: 1px solid #bfdbfe; }.signal-advice.buy { color: #b91c1c; background: #fef2f2; border: 1px solid #fecaca; }.signal-advice.neutral { color: #111827; background: #f8fafc; border: 1px solid #e2e8f0; }.after-hours-mode .charts-area { background: linear-gradient(90deg, transparent 70%, rgba(100,116,139,.13) 70%); }

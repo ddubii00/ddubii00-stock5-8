@@ -16,6 +16,22 @@ const KOREAN_SEARCH_FALLBACKS = [
   ['028050', '삼성E&A', 'KOSPI'],
 ].map(([code, name, exchange]) => ({ symbol: `${code}.${exchange === 'KOSDAQ' ? 'KQ' : 'KS'}`, name, exchange, type: 'KR' }));
 
+function resolveSearchWithin(promise, fallback = [], timeoutMs = 1200) {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(fallback), timeoutMs);
+    Promise.resolve(promise).then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      () => {
+        clearTimeout(timer);
+        resolve(fallback);
+      },
+    );
+  });
+}
+
 function normalizeKoreanResult(item) {
   const code = String(item?.itemCode || item?.code || item?.symbol || '').replace(/\.(KS|KQ)$/i, '');
   const name = item?.stockName || item?.name || item?.itemName || '';
@@ -52,15 +68,18 @@ export default async function handler(req, res) {
   if (!q || q.trim().length < 1) return res.json([]);
   const query = q.trim().toLowerCase();
   const upperQuery = q.trim().toUpperCase().replace(/\s/g, '');
+  const isKoreanQuery = /[ㄱ-ㅎㅏ-ㅣ가-힣]/.test(query);
 
   const indexMatches = Object.entries(INDEX_MAP)
     .filter(([key, value]) => key.includes(upperQuery) || value.name.toUpperCase().includes(upperQuery))
     .map(([, value]) => ({ symbol: value.symbol, name: value.name, exchange: value.exchange, type: 'INDEX' }));
 
-  const [naverMatches, krxList] = await Promise.all([
-    fetchNaverStockMatches(q.trim()).catch(() => []),
-    loadKrxList().catch(() => []),
-  ]);
+  const [naverMatches, krxList] = isKoreanQuery
+    ? await Promise.all([
+        resolveSearchWithin(fetchNaverStockMatches(q.trim())),
+        resolveSearchWithin(loadKrxList()),
+      ])
+    : [[], []];
   const fallbackMatches = KOREAN_SEARCH_FALLBACKS.filter((item) => (
     item.name.toLowerCase().includes(query) || item.symbol.includes(query)
   ));
@@ -74,21 +93,20 @@ export default async function handler(req, res) {
       type: 'KR',
     }));
 
-  let usMatches = [];
-  try {
-    const result = await yahooFinance.search(q.trim(), { quotesCount: 10 });
-    usMatches = (result.quotes || [])
-      .filter((item) => ['EQUITY', 'ETF', 'INDEX', 'FUTURE'].includes(item.quoteType) && !item.symbol.match(/\.(KS|KQ|T|HK|AX)$/))
-      .slice(0, 10)
-      .map((item) => ({
-        symbol: item.symbol,
-        name: item.shortname || item.longname || item.symbol,
-        exchange: item.exchange || 'US',
-        type: item.quoteType === 'INDEX' ? 'INDEX' : 'US',
-      }));
-  } catch (error) {
-    console.error('Yahoo search error:', error.message);
-  }
+  const usMatches = isKoreanQuery
+    ? []
+    : await resolveSearchWithin(
+        yahooFinance.search(q.trim(), { quotesCount: 10 })
+          .then((result) => (result.quotes || [])
+            .filter((item) => ['EQUITY', 'ETF', 'INDEX', 'FUTURE'].includes(item.quoteType) && !item.symbol.match(/\.(KS|KQ|T|HK|AX)$/))
+            .slice(0, 10)
+            .map((item) => ({
+              symbol: item.symbol,
+              name: item.shortname || item.longname || item.symbol,
+              exchange: item.exchange || 'US',
+              type: item.quoteType === 'INDEX' ? 'INDEX' : 'US',
+            }))),
+      );
 
   return res.json(uniqueMatches([...indexMatches, ...naverMatches, ...krxMatches, ...fallbackMatches, ...usMatches]).slice(0, 25));
 }

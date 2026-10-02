@@ -83,7 +83,9 @@ function Login({ onLogin }) {
 function WatchlistModal({ state, onChange, onClose }) {
   const [group, setGroup] = useState(GROUPS[0]);
   const [quotes, setQuotes] = useState({});
+  const [searchActive, setSearchActive] = useState(false);
   const quoteStatusRef = useRef(new Map());
+  const quoteAbortRef = useRef(null);
   const mountedRef = useRef(true);
 
   useEffect(() => () => {
@@ -109,6 +111,11 @@ function WatchlistModal({ state, onChange, onClose }) {
     });
   }, [group, onChange, state]);
 
+  const setSearchActivity = useCallback((active) => {
+    if (active) quoteAbortRef.current?.abort();
+    setSearchActive(active);
+  }, []);
+
   // Important performance change:
   // Previously, every watchlist change launched one quote request for EVERY
   // saved stock at once. With a large watchlist that could occupy all browser
@@ -117,26 +124,34 @@ function WatchlistModal({ state, onChange, onClose }) {
   // Now each symbol is requested only once per modal session, with at most
   // two low-priority quote requests at a time. Search requests stay responsive.
   useEffect(() => {
-    const missing = state.items.filter((item) => {
-      const status = quoteStatusRef.current.get(item.symbol);
-      return status !== 'pending' && status !== 'done';
-    });
+    if (searchActive) return undefined;
+
+    const missing = state.items
+      .filter((item) => {
+        const status = quoteStatusRef.current.get(item.symbol);
+        return status !== 'pending' && status !== 'done';
+      })
+      // A just-added symbol should receive its quote before older rows.
+      .reverse();
 
     if (!missing.length) return;
 
     missing.forEach((item) => quoteStatusRef.current.set(item.symbol, 'pending'));
+    const controller = new AbortController();
+    quoteAbortRef.current = controller;
 
     void (async () => {
       const updates = {};
       let cursor = 0;
 
       const worker = async () => {
-        while (cursor < missing.length) {
+        while (!controller.signal.aborted && cursor < missing.length) {
           const item = missing[cursor++];
           try {
             const response = await fetch(apiUrl(`/quote?symbol=${encodeURIComponent(item.symbol)}`), {
               cache: 'no-store',
               priority: 'low',
+              signal: controller.signal,
             });
 
             if (!response.ok) throw new Error('quote unavailable');
@@ -157,7 +172,17 @@ function WatchlistModal({ state, onChange, onClose }) {
         setQuotes((current) => ({ ...current, ...updates }));
       }
     })();
-  }, [state.items]);
+
+    return () => {
+      controller.abort();
+      missing.forEach((item) => {
+        if (quoteStatusRef.current.get(item.symbol) === 'pending') {
+          quoteStatusRef.current.delete(item.symbol);
+        }
+      });
+      if (quoteAbortRef.current === controller) quoteAbortRef.current = null;
+    };
+  }, [state.items, searchActive]);
 
   const reorder = (event, targetId) => {
     event.preventDefault();
@@ -196,6 +221,8 @@ function WatchlistModal({ state, onChange, onClose }) {
 
         <StockSearch
           onSelect={add}
+          onSearchActivity={setSearchActivity}
+          autoFocus
           placeholder="한국·미국·일본 종목 또는 지수 검색 (예: 삼성, 삼전, AAPL, Nikkei)"
         />
 

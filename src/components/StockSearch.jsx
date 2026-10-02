@@ -11,7 +11,7 @@ function matchesQuery(item, query) {
     || normalize(item?.exchange).includes(q);
 }
 
-function StockSearch({ onSelect, placeholder }) {
+function StockSearch({ onSelect, placeholder, autoFocus = false, onSearchActivity }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [open, setOpen] = useState(false);
@@ -38,8 +38,9 @@ function StockSearch({ onSelect, placeholder }) {
       document.removeEventListener('mousedown', handler);
       clearTimeout(timerRef.current);
       requestSeqRef.current += 1;
+      onSearchActivity?.(false);
     };
-  }, []);
+  }, [onSearchActivity]);
 
   useEffect(() => {
     if (activeIndex < 0) return;
@@ -140,8 +141,11 @@ function StockSearch({ onSelect, placeholder }) {
       setResults([]);
       setOpen(false);
       setLoading(false);
+      onSearchActivity?.(false);
       return;
     }
+
+    onSearchActivity?.(true);
 
     const cached = cacheRef.current.get(key);
     if (cached) {
@@ -167,6 +171,7 @@ function StockSearch({ onSelect, placeholder }) {
     setOpen(false);
     setActiveIndex(-1);
     setLoading(false);
+    onSearchActivity?.(false);
     onSelect({ symbol: item.symbol, name: item.name });
   };
 
@@ -210,6 +215,7 @@ function StockSearch({ onSelect, placeholder }) {
         onChange={handleChange}
         onKeyDown={handleKeyDown}
         onFocus={() => { if (results.length > 0) setOpen(true); }}
+        autoFocus={autoFocus}
         autoComplete="off"
         role="combobox"
         aria-autocomplete="list"

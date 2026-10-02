@@ -156,6 +156,22 @@ function normalizeSearchText(value) {
   return String(value || '').toLowerCase().replace(/\s+/g, '');
 }
 
+function resolveSearchWithin(promise, fallback = [], timeoutMs = 1200) {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(fallback), timeoutMs);
+    Promise.resolve(promise).then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      () => {
+        clearTimeout(timer);
+        resolve(fallback);
+      },
+    );
+  });
+}
+
 function krxSearchScore(item, query) {
   const q = normalizeSearchText(query);
   const name = normalizeSearchText(item.name);
@@ -1234,7 +1250,16 @@ app.get('/api/search', async (req, res) => {
     const indexMatches = Object.entries(INDEX_MAP)
       .filter(([key]) => key.includes(upperQ) || upperQ.includes(key.slice(0, 3)))
       .map(([, v]) => ({ symbol: v.symbol, name: v.name, exchange: v.exchange, type: 'INDEX' }));
-    const naverMatches = isKoreanQuery ? await fetch(`https://ac.stock.naver.com/ac?q=${encodeURIComponent(q.trim())}&type=search&target=stock`, {
+    // Search must stay responsive even while a large watchlist is loading
+    // quotes. Serve the local KRX cache immediately and only wait briefly for
+    // Naver's supplementary matches.
+    const krxList = isKoreanQuery
+      ? (krxCache.items.length ? krxCache.items : KRX_FALLBACK_ITEMS)
+      : [];
+    if (isKoreanQuery && !krxCache.items.length) {
+      void loadKrxList().catch(() => {});
+    }
+    const naverMatchesPromise = isKoreanQuery ? fetch(`https://ac.stock.naver.com/ac?q=${encodeURIComponent(q.trim())}&type=search&target=stock`, {
       headers: { Accept: 'application/json', 'User-Agent': 'Mozilla/5.0', 'Accept-Language': 'ko-KR,ko;q=0.9' },
     })
       .then(async (response) => {
@@ -1248,12 +1273,9 @@ app.get('/api/search', async (req, res) => {
           });
       })
       .catch(() => []) : [];
-    const krxList = isKoreanQuery && !krxCache.items.length
-      ? KRX_FALLBACK_ITEMS
-      : await loadKrxList().catch(() => []);
-    if (isKoreanQuery && !krxCache.items.length) {
-      loadKrxList().catch(() => {});
-    }
+    const naverMatches = isKoreanQuery
+      ? await resolveSearchWithin(naverMatchesPromise)
+      : [];
     const krxMatches = krxList
       .map(x => ({ item: x, score: krxSearchScore(x, query) }))
       .filter(x => x.score > 0)
