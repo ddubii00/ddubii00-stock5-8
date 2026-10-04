@@ -405,6 +405,13 @@ export default function App() {
                   memo={item.memo}
                   memoPosition={item.memoPosition}
                   memoSize={item.memoSize}
+                  trendLines={item.trendLines}
+                  onTrendLinesChange={(trendLines) => save({
+                    ...state,
+                    items: state.items.map((row) => (
+                      row.id === item.id ? { ...row, trendLines } : row
+                    )),
+                  })}
                   onMemoChange={(memo, memoPosition, memoSize) => save({
                     ...state,
                     items: state.items.map((row) => (

@@ -9,6 +9,7 @@ import {
 import { calculateMACD, calculateIchimoku, calculateMA, calculateBollingerBands, buildTimeMap } from '../utils/indicators';
 import { analyzeTradeSignal, formatTradeSignalAdvice } from '../utils/tradeSignal';
 import StockSearch from './StockSearch';
+import TrendLineOverlay from './TrendLineOverlay';
 import { apiUrl } from '../api';
 
 const MAIN_TFS = [
@@ -976,7 +977,7 @@ const BASE_OPTS = {
   },
 };
 
-export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode = 'KRX', showBollinger = true, memo = '', memoPosition = { x: 12, y: 58 }, memoSize = { width: 145, height: 78 }, onMemoChange }) {
+export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode = 'KRX', showBollinger = true, memo = '', memoPosition = { x: 12, y: 58 }, memoSize = { width: 145, height: 78 }, onMemoChange, trendLines = {}, onTrendLinesChange }) {
   // ① localStorage로 마지막 선택 종목 복원
   const storageKey = `stock5_symbol_${id}`;
   const storedRaw   = localStorage.getItem(storageKey);
@@ -1056,6 +1057,7 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
   const symbolRef   = useRef(symbol);
   const timeZoneRef = useRef(symbolTimeZone(symbol));
   const mainViewKeyRef = useRef('');
+  const mainRequestSeqRef = useRef(0);
   const ichiViewKeyRef = useRef('');
   const ichiRequestSeqRef = useRef(0);
   const cloudCanvas = useRef(null);
@@ -1122,6 +1124,7 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
 
   // ① 종목 선택 시 localStorage 저장
   const handleSelect = useCallback(({ symbol: sym, name }) => {
+    mainRequestSeqRef.current += 1;
     setSymbol(sym);
     setSymbolName(name);
     setError('');
@@ -1520,6 +1523,7 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
 
     return () => {
       window.removeEventListener('resize', onResize);
+      mainRequestSeqRef.current += 1;
       inited.current = false;
       bgCanvasRef.current?.remove();
       cloudCanvas.current?.remove();
@@ -1680,9 +1684,11 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
   // ─── 메인 3개 차트 데이터 로드 ───────────────────────
   const fetchMain = useCallback(async (sym, tf, lim, { followLatest = false } = {}) => {
     if (!sym || !ser.current.candle) return;
+    const requestSeq = mainRequestSeqRef.current;
     const viewKey = `${sym}:${tf.interval}:${lim}`;
     const market = marketMode === 'KRX2' && isKoreanSymbol(sym) && isIntradayTf(tf) ? '&market=after' : '';
     const r    = await fetch(apiUrl(`/ohlcv?symbol=${encodeURIComponent(sym)}&interval=${tf.interval}&limit=${requestLimit(tf, lim)}${market}`));
+    if (requestSeq !== mainRequestSeqRef.current) return;
     const contentType = r.headers.get('content-type') || '';
     if (!r.ok) {
       const body = contentType.includes('application/json') ? await r.json().catch(() => null) : await r.text();
@@ -1728,6 +1734,8 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
         // 현재가 조회 실패 시 기존 OHLCV 유지
       }
     }
+    // A previous timeframe request must not shift the new timeframe's lines.
+    if (requestSeq !== mainRequestSeqRef.current || !ser.current.candle) return;
     const now = Date.now();
     const symbolChanged = adviceDailySymbolRef.current !== sym;
     const shouldRefreshAdvice = symbolChanged || now >= adviceNextReviewAtRef.current;
@@ -1808,6 +1816,7 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
         mainViewKeyRef.current = viewKey;
       }
       drawMacdBackground();
+      priceRef.current?.dispatchEvent(new Event('trend-data'));
     });
   }, [drawMacdBackground, marketMode]);
 
@@ -2044,16 +2053,20 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
   const applyLimit = () => {
     const n = parseInt(limitInput, 10);
     if (n > 0 && n <= 2000) {
+      mainRequestSeqRef.current += 1;
+      if (n === limit) setLoadVersion(version => version + 1);
       setLimit(n);
       setLimitInput(String(n));
     }
   };
 
   const changeMainTf = (tf) => {
+    mainRequestSeqRef.current += 1;
     const defaults = { '1m': 400, '3m': 200, '5m': 120, '15m': 100, '30m': 100, '60m': 100 };
     mainViewKeyRef.current = '';
     setError('');
     setLoading(true);
+    if (tf.interval === mainTf.interval) setLoadVersion(version => version + 1);
     setMainTf(tf);
     if (defaults[tf.interval]) {
       setLimit(defaults[tf.interval]);
@@ -2235,6 +2248,13 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
         <div ref={priceSectionRef} className="chart-section" style={{ position: 'relative' }}>
           <div className="chart-label">캔들차트</div>
           <div ref={priceRef} />
+          <TrendLineOverlay
+            key={`${symbol}:${mainTf.interval}:${marketMode}`}
+            chartsRef={charts} seriesRef={ser} candlesRef={mainCandlesRef}
+            containerRef={priceRef} ready={chartsReady && !loading}
+            lines={trendLines[`${symbol}:${mainTf.interval}`] || []}
+            onChange={(lines) => onTrendLinesChange?.({ ...trendLines, [`${symbol}:${mainTf.interval}`]: lines })}
+          />
           {/* ③ MACD 배경 캔버스는 priceRef 안에 동적 삽입 */}
           {/* ⑤⑨ OHLC + MA 팝업 */}
           <div ref={tooltipRef} className="price-tooltip" />

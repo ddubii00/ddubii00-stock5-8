@@ -2,6 +2,7 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
+import { cleanTrendLines } from '../src/utils/trendLines.js';
 
 const KEY = 'stock5-8:watchlist';
 const EMPTY = { mode: 'KRX', items: [] };
@@ -17,6 +18,7 @@ function clean(value) {
     exchange: String(item.exchange || '').slice(0, 30), type: String(item.type || '').slice(0, 30), group: String(item.group || '3. 롱 관심').slice(0, 30),
     memo: String(item.memo || '').slice(0, 100), memoPosition: { x: Math.max(0, Number(item.memoPosition?.x) || 12), y: Math.max(0, Number(item.memoPosition?.y) || 58) },
     memoSize: { width: Math.min(600, Math.max(120, Number(item.memoSize?.width) || 145)), height: Math.min(400, Math.max(70, Number(item.memoSize?.height) || 78)) },
+    trendLines: cleanTrendLines(item.trendLines),
   })).filter(item => item.id && item.symbol && item.name) : [];
   return { mode: value?.mode === 'KRX2' ? 'KRX2' : 'KRX', items };
 }

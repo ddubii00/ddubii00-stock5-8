@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="ko">
+<meta charset="utf-8" />
+<title>추세선 편집 검증</title>
+<div id="root"></div>
+<script type="module">
+  import React, { useEffect, useRef, useState } from 'react';
+  import { createRoot } from 'react-dom/client';
+  import { CandlestickSeries, createChart } from 'lightweight-charts';
+  import TrendLineOverlay from '../src/components/TrendLineOverlay.jsx';
+  import '../src/index.css';
+  function Demo() {
+    const containerRef = useRef(null);
+    const chartsRef = useRef({});
+    const seriesRef = useRef({});
+    const candlesRef = useRef([]);
+    const [ready, setReady] = useState(false);
+    const [interval, setInterval] = useState('day');
+    const [saved, setSaved] = useState(() => JSON.parse(localStorage.getItem('trend-lines-test') || '{}'));
+    useEffect(() => {
+      const price = createChart(containerRef.current, { width: 900, height: 300 });
+      const candle = price.addSeries(CandlestickSeries);
+      chartsRef.current = { price };
+      seriesRef.current = { candle };
+      candlesRef.current = Array.from({ length: 90 }, (_, i) => ({
+        time: new Date(Date.UTC(2026, 6, i + 1)).toISOString().slice(0, 10),
+        open: 100 + i, high: 106 + i, low: 96 + i, close: 103 + i,
+      }));
+      candle.setData(candlesRef.current);
+      price.timeScale().fitContent();
+      setReady(true);
+      return () => price.remove();
+    }, []);
+    return React.createElement('main', { style: { padding: 20 } },
+      React.createElement('button', { onClick: () => setInterval(interval === 'day' ? 'week' : 'day') }, interval === 'day' ? '주봉으로' : '일봉으로'),
+      React.createElement('button', { onClick: () => {
+        const last = candlesRef.current.at(-1);
+        const time = new Date(Date.parse(last.time) + 86400000).toISOString().slice(0, 10);
+        candlesRef.current = [...candlesRef.current, { ...last, time }];
+        seriesRef.current.candle.setData(candlesRef.current);
+        containerRef.current.dispatchEvent(new Event('trend-data'));
+      } }, '새 봉 추가'),
+      React.createElement('section', { style: { position: 'relative', width: 900, marginTop: 12 } },
+        React.createElement('div', { className: 'chart-label' }, '캔들차트'),
+        React.createElement('div', { ref: containerRef }),
+        React.createElement(TrendLineOverlay, { key: interval, chartsRef, seriesRef, candlesRef, containerRef, ready,
+          lines: saved[interval] || [], onChange: (lines) => {
+            const next = { ...saved, [interval]: lines };
+            setSaved(next); localStorage.setItem('trend-lines-test', JSON.stringify(next));
+          } }),
+      ),
+      React.createElement('pre', { id: 'saved-lines' }, JSON.stringify(saved, null, 2)),
+    );
+  }
+  createRoot(document.getElementById('root')).render(React.createElement(Demo));
+</script>
+</html>
