@@ -525,16 +525,19 @@ html, body {
 .price-tooltip {
   display: none;
   position: absolute;
+  top: 4px;
+  right: 4px;
   z-index: 100;
   pointer-events: none;
   background: rgba(255, 255, 255, 0.96);
   border: 1px solid #e2e5ec;
-  border-radius: 6px;
-  padding: 5px 8px;
+  border-radius: 4px;
+  padding: 3px 5px;
   box-shadow: 0 5px 14px rgba(0,0,0,0.12);
-  width: 180px;
-  font-size: 11px;
-  line-height: 1.2;
+  width: max-content;
+  max-width: calc(100% - 8px);
+  font-size: 10px;
+  line-height: 1.05;
   backdrop-filter: blur(3px);
 }
 
@@ -548,27 +551,27 @@ html, body {
 
 .tt-row {
   display: flex;
-  gap: 4px;
+  gap: 6px;
   justify-content: space-between;
-  margin-bottom: 2px;
-  font-size: 11px;
+  margin-bottom: 1px;
+  font-size: 10px;
   white-space: nowrap;
 }
 .tt-row b { font-weight: 600; }
-.tt-row.tt-change { margin-left: -11px; width: calc(100% + 11px); }
+.tt-row.tt-change { margin-left: 0; width: 100%; }
 
 .tt-gray { color: var(--muted); }
 
 .tt-ma-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 4px 6px;
-  margin-top: 3px;
-  padding-top: 3px;
+  gap: 1px 5px;
+  margin-top: 1px;
+  padding-top: 1px;
   border-top: 1px solid #f0f2f5;
 }
 .tt-ma {
-  font-size: 10.5px;
+  font-size: 10px;
   font-weight: 500;
   white-space: nowrap;
   min-width: 0;
@@ -578,19 +581,22 @@ html, body {
 .ichi-tooltip {
   display: none;
   position: absolute;
+  top: 4px;
+  right: 4px;
   z-index: 120;
   pointer-events: none;
   grid-template-columns: 1fr 1fr;
-  gap: 2px 6px;
-  width: 144px;
-  padding: 4px 6px;
+  gap: 1px 5px;
+  width: max-content;
+  max-width: calc(100% - 8px);
+  padding: 3px 5px;
   border: 1px solid rgba(203, 213, 225, .78);
   border-radius: 5px;
   background: rgba(255, 255, 255, .72);
   box-shadow: 0 4px 12px rgba(15, 23, 42, .12);
   backdrop-filter: blur(2px);
   font-size: 10px;
-  line-height: 1.12;
+  line-height: 1.05;
 }
 
 .ichi-tt-item {

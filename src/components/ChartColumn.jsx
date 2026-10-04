@@ -977,7 +977,7 @@ const BASE_OPTS = {
   },
 };
 
-export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode = 'KRX', showBollinger = true, memo = '', memoPosition = { x: 12, y: 58 }, memoSize = { width: 145, height: 78 }, onMemoChange, trendLines = {}, onTrendLinesChange }) {
+export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode = 'KRX', showBollinger = true, memo = '', memoPosition = { anchor: 'symbol-right', x: 0, y: 38 }, memoSize = { width: 145, height: 78 }, onMemoChange, trendLines = {}, onTrendLinesChange }) {
   // ① localStorage로 마지막 선택 종목 복원
   const storageKey = `stock5_symbol_${id}`;
   const storedRaw   = localStorage.getItem(storageKey);
@@ -1027,6 +1027,7 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
 
   // DOM refs
   const priceSectionRef = useRef(null);
+  const symbolRowRef = useRef(null);
   const volumeSectionRef = useRef(null);
   const macdSectionRef = useRef(null);
   const ichiSectionRef = useRef(null);
@@ -1081,6 +1082,15 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
   });
   const normalizeNotePosition = (position, size) => {
     const bounds = noteBounds(size);
+    if (position?.anchor === 'symbol-right') {
+      const card = chartColumnRef.current;
+      const row = symbolRowRef.current;
+      return {
+        anchor: 'symbol-right',
+        x: Math.max(0, (card?.clientWidth || size.width + 8) - size.width - 8),
+        y: card && row ? Math.max(0, row.getBoundingClientRect().top - card.getBoundingClientRect().top - 1) : 38,
+      };
+    }
     return {
       x: Math.min(bounds.maxX, Math.max(0, Number(position?.x) || 12)),
       y: Math.min(bounds.maxY, Math.max(38, Number(position?.y) || 58)),
@@ -1120,7 +1130,25 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
     const nextSize = normalizeNoteSize(memoSize);
     setNoteSize(nextSize);
     setNotePos(normalizeNotePosition(memoPosition, nextSize));
-  }, [memoPosition?.x, memoPosition?.y, memoSize?.width, memoSize?.height]);
+  }, [memoPosition?.x, memoPosition?.y, memoPosition?.anchor, memoSize?.width, memoSize?.height]);
+
+  // New notes follow the symbol row/right edge until manually dragged.
+  useEffect(() => {
+    if (notePos?.anchor !== 'symbol-right' || !chartColumnRef.current) return undefined;
+    const card = chartColumnRef.current;
+    const row = symbolRowRef.current;
+    const observer = new ResizeObserver(() => {
+      const next = {
+        anchor: 'symbol-right',
+        x: Math.max(0, card.clientWidth - noteSize.width - 8),
+        y: row ? Math.max(0, row.getBoundingClientRect().top - card.getBoundingClientRect().top - 1) : 38,
+      };
+      setNotePos((current) => current.x === next.x && current.y === next.y ? current : next);
+    });
+    observer.observe(card);
+    if (row) observer.observe(row);
+    return () => observer.disconnect();
+  }, [notePos?.anchor, noteSize.width, symbolName]);
 
   // ① 종목 선택 시 localStorage 저장
   const handleSelect = useCallback(({ symbol: sym, name }) => {
@@ -1433,13 +1461,6 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
                     : '') +
                   (maRows ? `<div class="tt-ma-row">${maRows}</div>` : '');
 
-                const cw = priceRef.current?.clientWidth || 400;
-                const tooltipWidth = 180;
-                let lx = param.point.x - tooltipWidth - 14;
-                if (lx < 4) lx = param.point.x + 12;
-                if (lx + tooltipWidth > cw) lx = Math.max(4, cw - tooltipWidth);
-                tip.style.left = lx + 'px';
-                tip.style.top  = Math.max(4, param.point.y - 58) + 'px';
                 tip.style.display = 'block';
               }
             }
@@ -1503,12 +1524,6 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
       }
 
       tip.innerHTML = rows.join('');
-      const cw = ichiRef.current?.clientWidth || 400;
-      let lx = param.point.x - 154;
-      if (lx < 4) lx = param.point.x + 10;
-      if (lx + 148 > cw) lx = Math.max(4, cw - 148);
-      tip.style.left = `${lx}px`;
-      tip.style.top = `${Math.max(4, param.point.y - 36)}px`;
       tip.style.display = 'grid';
     });
 
@@ -2158,7 +2173,7 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
         <StockSearch onSelect={handleSelect} placeholder="종목/지수 검색 (예: 하이닉스, KOSPI, AAPL, S&P500)..." />
 
         {symbolName && (
-          <div className="symbol-row">
+          <div className="symbol-row" ref={symbolRowRef}>
             <span className="symbol-name">{symbolName}</span>
             <span className="symbol-code">{symbol}</span>
             {quote?.symbol === symbol && (
@@ -2327,7 +2342,7 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
           <div ref={ichiTooltipRef} className="ichi-tooltip" />
         </div>
       </div>
-      {noteOpen && <div className="draggable-note" onMouseUp={saveNoteSize} style={{ left: notePos.x, top: notePos.y, width: noteSize.width, height: noteSize.height }}><div className="note-grip" onMouseDown={dragNote} aria-label="메모 이동">⋮⋮<button type="button" className="note-close-btn" onMouseDown={event => event.stopPropagation()} onClick={() => setNoteOpen(false)} aria-label="메모 숨기기">×</button></div><textarea maxLength="100" value={note} onChange={e => setNote(e.target.value)} onBlur={() => onMemoChange?.(note, notePos, noteSize)} placeholder="100자 메모" /></div>}
+      {noteOpen && <div className="draggable-note" onMouseUp={saveNoteSize} style={{ left: notePos.anchor === 'symbol-right' ? undefined : notePos.x, right: notePos.anchor === 'symbol-right' ? 8 : undefined, top: notePos.y, width: noteSize.width, height: noteSize.height }}><div className="note-grip" onMouseDown={dragNote} aria-label="메모 이동">⋮⋮<button type="button" className="note-close-btn" onMouseDown={event => event.stopPropagation()} onClick={() => setNoteOpen(false)} aria-label="메모 숨기기">×</button></div><textarea maxLength="100" value={note} onChange={e => setNote(e.target.value)} onBlur={() => onMemoChange?.(note, notePos, noteSize)} placeholder="100자 메모" /></div>}
 
       {analysisOpen && (
         <div className="analysis-modal-backdrop" role="presentation">

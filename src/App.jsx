@@ -104,7 +104,7 @@ function WatchlistModal({ state, onChange, onClose }) {
           id: crypto.randomUUID(),
           group,
           memo: '',
-          memoPosition: { x: 12, y: 58 },
+          memoPosition: { anchor: 'symbol-right', x: 0, y: 38 },
           memoSize: { width: 145, height: 78 },
         },
       ],
