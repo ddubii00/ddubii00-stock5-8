@@ -1,16 +1,14 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
-import { logicalAtTime, timeAtLogical } from '../utils/trendLines';
+import { distanceToTrendLine, logicalAtTime, timeAtLogical } from '../utils/trendLines';
 
-function TrendLineShape({ line, drawing, selected, onSelect, onEndpoint }) {
+function TrendLineShape({ line, drawing, selected }) {
   return (
     <g>
       <line x1={line.a.x} y1={line.a.y} x2={line.b.x} y2={line.b.y} stroke="#000" strokeWidth={line.width || 1} pointerEvents="none" />
-      {!drawing && <line x1={line.a.x} y1={line.a.y} x2={line.b.x} y2={line.b.y} stroke="transparent" strokeWidth="12"
-        style={{ pointerEvents: 'stroke', cursor: 'pointer' }} onPointerDown={(event) => onSelect(event, line)} />}
       {selected && !drawing && ['start', 'end'].map((endpoint) => {
         const point = endpoint === 'start' ? line.a : line.b;
         return <circle key={endpoint} cx={point.x} cy={point.y} r="5" fill="#fff" stroke="#000" strokeWidth="1.5"
-          style={{ pointerEvents: 'all', cursor: 'move' }} onPointerDown={(event) => onEndpoint(event, line, endpoint)} />;
+          pointerEvents="none" />;
       })}
       <title>{`${new Date(line.start.time * 1000).toLocaleString('ko-KR')} · ${line.start.price.toLocaleString('ko-KR')} → ${new Date(line.end.time * 1000).toLocaleString('ko-KR')} · ${line.end.price.toLocaleString('ko-KR')}`}</title>
     </g>
@@ -23,6 +21,7 @@ export default function TrendLineOverlay({ chartsRef, seriesRef, candlesRef, con
   const [draft, setDraft] = useState(null);
   const [geometry, setGeometry] = useState({ width: 0, height: 0, points: [] });
   const dragRef = useRef(null);
+  const interactionRef = useRef(null);
   const rootRef = useRef(null);
   const clipId = useId();
   const repaint = useCallback(() => {
@@ -96,7 +95,6 @@ export default function TrendLineOverlay({ chartsRef, seriesRef, candlesRef, con
     setSelectedId(line.id);
     setDraft(cleanLine);
     dragRef.current = { line: cleanLine, endpoint, created: !endpoint, x: event.clientX, y: event.clientY };
-    event.currentTarget.ownerSVGElement?.setPointerCapture(event.pointerId);
   };
 
   const move = (event) => {
@@ -104,7 +102,6 @@ export default function TrendLineOverlay({ chartsRef, seriesRef, candlesRef, con
     if (!drag) return;
     const anchor = anchorAt(event);
     if (!anchor) return;
-    event.preventDefault();
     setDraft({ ...drag.line, [drag.endpoint || 'end']: anchor });
   };
 
@@ -120,7 +117,6 @@ export default function TrendLineOverlay({ chartsRef, seriesRef, candlesRef, con
     dragRef.current = null;
     setDraft(null);
     if (drag.created) setDrawing(false);
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
   };
 
   const cancel = () => {
@@ -135,6 +131,60 @@ export default function TrendLineOverlay({ chartsRef, seriesRef, candlesRef, con
     setSelectedId(line.id);
     rootRef.current.focus({ preventScroll: true });
   };
+
+  // SVGs stay pointer-transparent, so the native chart keeps its crosshair and tooltip.
+  // Only actual drawing/selection clicks are intercepted before chart panning starts.
+  useEffect(() => {
+    interactionRef.current = { drawing, selectedId, geometry, anchorAt, beginDrag, selectLine, move, finish, cancel };
+  });
+
+  useEffect(() => {
+    const container = containerRef.current;
+    const parent = container?.parentElement;
+    if (!ready || !parent) return undefined;
+    const down = (event) => {
+      if (event.button !== 0 || !container.contains(event.target)) return;
+      const state = interactionRef.current;
+      const bounds = container.getBoundingClientRect();
+      const point = { x: event.clientX - bounds.left, y: event.clientY - bounds.top };
+      if (point.x < 0 || point.y < 0 || point.x > state.geometry.width || point.y > state.geometry.height) {
+        setSelectedId(null);
+        return;
+      }
+      if (state.drawing) {
+        const anchor = state.anchorAt(event);
+        if (anchor) state.beginDrag(event, { id: crypto.randomUUID(), start: anchor, end: anchor, width: 1 });
+        return;
+      }
+      const visibleLines = state.geometry.points.filter((line) => [line.a.x, line.a.y, line.b.x, line.b.y].every(Number.isFinite));
+      const selected = visibleLines.find((line) => line.id === state.selectedId);
+      if (selected) {
+        for (const endpoint of ['start', 'end']) {
+          const anchor = endpoint === 'start' ? selected.a : selected.b;
+          if (Math.hypot(point.x - anchor.x, point.y - anchor.y) <= 8) {
+            state.beginDrag(event, selected, endpoint);
+            return;
+          }
+        }
+      }
+      const hit = [...visibleLines].reverse().find((line) => distanceToTrendLine(point, line) <= 6);
+      if (hit) state.selectLine(event, hit);
+      else setSelectedId(null);
+    };
+    const movePointer = (event) => interactionRef.current.move(event);
+    const up = (event) => interactionRef.current.finish(event);
+    const cancelPointer = () => interactionRef.current.cancel();
+    parent.addEventListener('pointerdown', down, true);
+    document.addEventListener('pointermove', movePointer);
+    document.addEventListener('pointerup', up);
+    document.addEventListener('pointercancel', cancelPointer);
+    return () => {
+      parent.removeEventListener('pointerdown', down, true);
+      document.removeEventListener('pointermove', movePointer);
+      document.removeEventListener('pointerup', up);
+      document.removeEventListener('pointercancel', cancelPointer);
+    };
+  }, [ready, containerRef]);
 
   return (
     <div className="trend-line-editor" ref={rootRef} tabIndex={-1}
@@ -160,18 +210,11 @@ export default function TrendLineOverlay({ chartsRef, seriesRef, candlesRef, con
           굵기{selectedId ? ` ${lines.find((line) => line.id === selectedId)?.width || 1}` : ''}
         </button>
       </div>
-      <svg className={`trend-line-overlay${drawing ? ' drawing' : ''}`} width={geometry.width} height={geometry.height}
-        onPointerMove={move} onPointerUp={finish} onPointerCancel={cancel}>
+      <svg className={`trend-line-overlay${drawing ? ' drawing' : ''}`} width={geometry.width} height={geometry.height}>
         <defs><clipPath id={clipId}><rect width={geometry.width} height={geometry.height} /></clipPath></defs>
         <g clipPath={`url(#${clipId})`}>
-          <rect width={geometry.width} height={geometry.height} fill="transparent" style={{ pointerEvents: drawing ? 'all' : 'none' }}
-            onPointerDown={(event) => {
-              const anchor = anchorAt(event);
-              if (anchor) beginDrag(event, { id: crypto.randomUUID(), start: anchor, end: anchor, width: 1 });
-            }} />
           {geometry.points.filter((line) => [line.a.x, line.a.y, line.b.x, line.b.y].every(Number.isFinite)).map((line) => (
-            <TrendLineShape key={line.id} line={line} drawing={drawing} selected={line.id === selectedId}
-              onSelect={selectLine} onEndpoint={beginDrag} />
+            <TrendLineShape key={line.id} line={line} drawing={drawing} selected={line.id === selectedId} />
           ))}
         </g>
       </svg>

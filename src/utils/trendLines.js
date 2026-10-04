@@ -32,6 +32,16 @@ export function logicalAtTime(candles, time) {
   return low - 1 + (time - before) / (after - before);
 }
 
+// Hit-test the visible segment without placing a mouse-catching SVG over the chart.
+export function distanceToTrendLine(point, line) {
+  if (![point.x, point.y, line.a.x, line.a.y, line.b.x, line.b.y].every(Number.isFinite)) return Infinity;
+  const dx = line.b.x - line.a.x;
+  const dy = line.b.y - line.a.y;
+  const lengthSquared = dx * dx + dy * dy;
+  const t = lengthSquared ? Math.max(0, Math.min(1, ((point.x - line.a.x) * dx + (point.y - line.a.y) * dy) / lengthSquared)) : 0;
+  return Math.hypot(point.x - line.a.x - t * dx, point.y - line.a.y - t * dy);
+}
+
 export function cleanTrendLines(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
   const result = {};

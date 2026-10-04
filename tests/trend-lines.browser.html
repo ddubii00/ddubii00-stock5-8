@@ -11,6 +11,7 @@
   import '../src/index.css';
   function Demo() {
     const containerRef = useRef(null);
+    const tooltipRef = useRef(null);
     const chartsRef = useRef({});
     const seriesRef = useRef({});
     const candlesRef = useRef([]);
@@ -28,6 +29,16 @@
       }));
       candle.setData(candlesRef.current);
       price.timeScale().fitContent();
+      price.subscribeCrosshairMove((param) => {
+        const tooltip = tooltipRef.current;
+        const bar = param.seriesData.get(candle);
+        if (!param.point || !param.time || !bar) {
+          tooltip.style.display = 'none';
+          return;
+        }
+        tooltip.textContent = `${typeof param.time === 'string' ? param.time : JSON.stringify(param.time)} · 종가 ${bar.close}`;
+        tooltip.style.display = 'block';
+      });
       setReady(true);
       return () => price.remove();
     }, []);
@@ -43,6 +54,7 @@
       React.createElement('section', { style: { position: 'relative', width: 900, marginTop: 12 } },
         React.createElement('div', { className: 'chart-label' }, '캔들차트'),
         React.createElement('div', { ref: containerRef }),
+        React.createElement('div', { ref: tooltipRef, className: 'price-tooltip' }),
         React.createElement(TrendLineOverlay, { key: interval, chartsRef, seriesRef, candlesRef, containerRef, ready,
           lines: saved[interval] || [], onChange: (lines) => {
             const next = { ...saved, [interval]: lines };

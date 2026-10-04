@@ -3,7 +3,17 @@ import { test } from 'node:test';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { candleTimestamp, cleanTrendLines, logicalAtTime, timeAtLogical } from '../src/utils/trendLines.js';
+import { candleTimestamp, cleanTrendLines, distanceToTrendLine, logicalAtTime, timeAtLogical } from '../src/utils/trendLines.js';
+
+test('pointer-transparent trend lines hit-test segments, endpoints and invalid geometry', () => {
+  const line = { a: { x: 10, y: 20 }, b: { x: 110, y: 20 } };
+  assert.equal(distanceToTrendLine({ x: 50, y: 25 }, line), 5);
+  assert.equal(distanceToTrendLine({ x: 120, y: 20 }, line), 10);
+  assert.equal(distanceToTrendLine({ x: 50, y: 40 }, line), 20);
+  assert.equal(distanceToTrendLine({ x: 50, y: 50 }, { a: { x: 10, y: 10 }, b: { x: 90, y: 90 } }), 0);
+  assert.equal(distanceToTrendLine({ x: 13, y: 24 }, { a: line.a, b: line.a }), 5);
+  assert.equal(distanceToTrendLine({ x: 50, y: 25 }, { a: { x: null, y: 20 }, b: line.b }), Infinity);
+});
 
 test('anchors stay on the same trading date as history grows or rolls forward', () => {
   const bars = ['2026-09-28', '2026-09-29', '2026-09-30'].map(time => ({ time }));
