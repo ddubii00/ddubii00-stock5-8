@@ -399,6 +399,8 @@ html, body {
   border-radius: 2px;
   background: linear-gradient(90deg, var(--up) 0 50%, var(--dn) 50% 100%);
 }
+.bollinger-legend { color: #2563eb; cursor: default; }
+.legend-swatch.bollinger { height: 0; border-top: 1px dashed currentColor; border-radius: 0; }
 .ichi-legend {
   padding-top: 3px;
   padding-bottom: 3px;

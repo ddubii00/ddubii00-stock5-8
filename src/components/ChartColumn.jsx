@@ -11,6 +11,7 @@ import { analyzeTradeSignal, formatTradeSignalAdvice } from '../utils/tradeSigna
 import StockSearch from './StockSearch';
 import TrendLineOverlay from './TrendLineOverlay';
 import { apiUrl } from '../api';
+import { useChartTimeframe } from '../utils/chartTimeframe';
 
 const MAIN_TFS = [
   { label: '1분',  interval: '1m' },
@@ -977,7 +978,7 @@ const BASE_OPTS = {
   },
 };
 
-export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode = 'KRX', showBollinger = true, memo = '', memoPosition = { anchor: 'symbol-right', x: 0, y: 38 }, memoSize = { width: 145, height: 78 }, onMemoChange, trendLines = {}, onTrendLinesChange }) {
+export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode = 'KRX', showBollinger = true, globalWeekly = false, memo = '', memoPosition = { anchor: 'symbol-right', x: 0, y: 38 }, memoSize = { width: 145, height: 78 }, onMemoChange, trendLines = {}, onTrendLinesChange }) {
   // ① localStorage로 마지막 선택 종목 복원
   const storageKey = `stock5_symbol_${id}`;
   const storedRaw   = localStorage.getItem(storageKey);
@@ -985,8 +986,8 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
 
   const [symbol,     setSymbol]     = useState(stored?.symbol || defaultSymbol || null);
   const [symbolName, setSymbolName] = useState(stored?.name   || defaultName   || '');
-  const [mainTf,     setMainTf]     = useState(MAIN_TFS[6]);   // 일봉 default
-  const [ichiTf,     setIchiTf]     = useState(DEFAULT_ICHI_TF); // 일봉 default
+  const [mainTf, setMainTf] = useChartTimeframe(MAIN_TFS[6], MAIN_TFS[7], globalWeekly);
+  const [ichiTf, setIchiTf] = useChartTimeframe(DEFAULT_ICHI_TF, ICHI_TFS[7], globalWeekly);
   const [limit,      setLimit]      = useState(120);
   const [limitInput, setLimitInput] = useState('120');
   const [ichiLimit,  setIchiLimit]  = useState(120);
@@ -1975,19 +1976,24 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
   // 메인 캔들/거래량/MACD는 위쪽 봉 버튼과 기간만 바뀔 때 다시 로드
   useEffect(() => {
     if (!symbol) return;
+    const requestSeq = ++mainRequestSeqRef.current;
     const timer = setTimeout(() => {
       setError('');
       setLoading(true);
     }, 0);
     fetchMain(symbol, mainTf, limit)
       .catch(e => {
+        if (requestSeq !== mainRequestSeqRef.current) return;
         if (!String(e.message || '').includes('Value is null')) setError(e.message);
       })
       .finally(() => {
         clearTimeout(timer);
-        setLoading(false);
+        if (requestSeq === mainRequestSeqRef.current) setLoading(false);
       });
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      mainRequestSeqRef.current += 1;
+    };
   }, [symbol, mainTf, limit, loadVersion, fetchMain]);
 
   // 일목균형표는 아래쪽 일목 봉 버튼과 기간이 바뀔 때만 다시 로드
@@ -2094,7 +2100,7 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
     ichiViewKeyRef.current = '';
     setError('');
     if (tf.interval === ichiTf.interval) setIchiLoadVersion(version => version + 1);
-    else setIchiTf(tf);
+    setIchiTf(tf);
   };
 
   const applyIchiLimit = () => {
@@ -2255,6 +2261,12 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
             <span className="legend-swatch" style={{ backgroundColor: MA_COLORS[i] }} />{p}
           </button>
         ))}
+        <span
+          className={`legend-btn bollinger-legend${showBollinger ? '' : ' muted'}`}
+          title="볼린저밴드: 20기간 이동평균 ± 2 표준편차. 헤더 BB 버튼으로 전체 차트 표시/숨김"
+        >
+          <span className="legend-swatch bollinger" aria-hidden="true" />볼린저밴드
+        </span>
       </div>
 
       {/* 차트 영역 */}

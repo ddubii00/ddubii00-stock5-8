@@ -279,6 +279,7 @@ export default function App() {
   const [modal, setModal] = useState(false);
   const [marketSummary, setMarketSummary] = useState({});
   const [showBollinger, setShowBollinger] = useState(true);
+  const [globalWeekly, setGlobalWeekly] = useState(false);
 
   const clearAuthentication = useCallback(() => {
     localStorage.removeItem(PASSWORD_STORAGE_KEY);
@@ -373,6 +374,15 @@ export default function App() {
             BB
           </button>
           <button
+            type="button"
+            className={globalWeekly ? 'active' : ''}
+            aria-pressed={globalWeekly}
+            onClick={() => setGlobalWeekly((enabled) => !enabled)}
+            title="전체 캔들·일목 주봉 전환 (개별 봉 선택 가능). 끄면 이전 주기로 복원"
+          >
+            주
+          </button>
+          <button
             className={state.mode === 'KRX' ? 'active' : ''}
             onClick={() => save({ ...state, mode: 'KRX' })}
           >
@@ -402,6 +412,7 @@ export default function App() {
                   defaultName={item.name}
                   marketMode={state.mode}
                   showBollinger={showBollinger}
+                  globalWeekly={globalWeekly}
                   memo={item.memo}
                   memoPosition={item.memoPosition}
                   memoSize={item.memoSize}

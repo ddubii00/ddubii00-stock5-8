@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="ko">
+<meta charset="utf-8" />
+<title>전체 주봉·볼린저 레전드 검증 (모의 API)</title>
+<div id="root"></div>
+<script type="module">
+  import React from 'react';
+  import { createRoot } from 'react-dom/client';
+  import App from '../src/App.jsx';
+  // Standalone test page: no real API, portfolio or credentials are used.
+  let state = { mode: 'KRX', items: ['TEST1', 'TEST2'].map((symbol, i) => ({
+    id: `weekly-control-test-${i}`, symbol, name: `검증 종목 ${i + 1}`, group: '1. 롱 보유', memo: '',
+    memoPosition: { anchor: 'symbol-right', x: 0, y: 38 }, memoSize: { width: 145, height: 78 }, trendLines: {},
+  })) };
+  window.fetch = async (input, options = {}) => {
+    const url = new URL(String(input), location.href);
+    let payload;
+    if (url.pathname.endsWith('/state')) {
+      if (options.method === 'PUT') state = JSON.parse(options.body);
+      payload = state;
+    } else if (url.pathname.endsWith('/quote')) {
+      payload = { symbol: url.searchParams.get('symbol'), price: 160, change: 1, changePct: .63 };
+    } else {
+      const weekly = url.searchParams.get('interval') === 'week';
+      await new Promise(resolve => setTimeout(resolve, weekly ? 25 : 150));
+      payload = Array.from({ length: 300 }, (_, i) => {
+        const close = 100 + i * .2 + Math.sin(i / 8) * 8;
+        return {
+          time: new Date(Date.UTC(weekly ? 2020 : 2025, 0, 1 + i * (weekly ? 7 : 1))).toISOString().slice(0, 10),
+          open: close - 1, high: close + 3, low: close - 3, close, volume: 10000 + i * 50,
+        };
+      });
+    }
+    return new Response(JSON.stringify(payload), { headers: { 'Content-Type': 'application/json' } });
+  };
+  createRoot(document.getElementById('root')).render(React.createElement(App));
+</script>
+</html>
