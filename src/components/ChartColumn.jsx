@@ -38,8 +38,8 @@ const ICHI_TFS = [
 ];
 const DEFAULT_ICHI_TF = ICHI_TFS.find(tf => tf.interval === 'day') || ICHI_TFS[0];
 
-const MA_PERIODS = [5, 10, 20, 60, 120];
-const MA_COLORS  = ['#f59e0b', '#22c55e', '#a855f7', '#06b6d4', '#64748b'];
+const MA_PERIODS = [5, 10, 20, 60, 120, 200];
+const MA_COLORS  = ['#f59e0b', '#22c55e', '#a855f7', '#06b6d4', '#64748b', '#92400e'];
 const INTRA_INTERVALS = ['1m','3m','5m','15m','30m','60m'];
 const PRICE_SCALE_WIDTH = 92;
 const ICHIMOKU_DISPLACEMENT = 26;
@@ -1016,6 +1016,7 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
     ma20: true,
     ma60: true,
     ma120: true,
+    ma200: true,
   });
   const [ichiVisible, setIchiVisible] = useState({
     candle: true,
@@ -1445,7 +1446,7 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
                 const changePctColor = Number.isFinite(changePct)
                   ? (changePct >= 0 ? '#dc2626' : '#1565c0')
                   : color;
-                const maRows = MA_PERIODS.slice(0, 4).map((p, idx) => {
+                const maRows = MA_PERIODS.map((p, idx) => {
                   const val = maMaps.current[idx]?.get(tk);
                   return val != null
                     ? `<span class="tt-ma" style="color:${MA_COLORS[idx]}">${p} <b>${formatPriceLabel(val, symbolRef.current)}</b></span>`
