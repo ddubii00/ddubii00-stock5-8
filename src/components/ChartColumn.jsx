@@ -14,6 +14,7 @@ import { apiUrl } from '../api';
 import { useChartTimeframe } from '../utils/chartTimeframe';
 import { MA_PERIODS, candleHistoryLimit } from '../utils/chartHistory';
 import { anchoredMemoPosition } from '../utils/memoPosition';
+import { useChartVisibility } from '../utils/chartVisibility';
 
 const MAIN_TFS = [
   { label: '1분',  interval: '1m' },
@@ -1013,6 +1014,7 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
     ma120: true,
     ma200: true,
   });
+  const [bollingerVisible, toggleBollingerVisible] = useChartVisibility(showBollinger);
   const [ichiVisible, setIchiVisible] = useState({
     candle: true,
     tenkan: true,
@@ -1167,10 +1169,10 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
   }, [mainVisible]);
 
   useEffect(() => {
-    ser.current.bollingerUpper?.applyOptions({ visible: showBollinger });
-    ser.current.bollingerMiddle?.applyOptions({ visible: showBollinger });
-    ser.current.bollingerLower?.applyOptions({ visible: showBollinger });
-  }, [showBollinger]);
+    ser.current.bollingerUpper?.applyOptions({ visible: bollingerVisible });
+    ser.current.bollingerMiddle?.applyOptions({ visible: bollingerVisible });
+    ser.current.bollingerLower?.applyOptions({ visible: bollingerVisible });
+  }, [bollingerVisible, chartsReady]);
 
   useEffect(() => {
     ser.current.ichiCandle?.applyOptions({ visible: ichiVisible.candle });
@@ -1338,17 +1340,17 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
     ser.current.bollingerUpper = pc.addSeries(LineSeries, {
       color: '#2563eb', lineWidth: 1, lineStyle: 2, crosshairMarkerVisible: false,
       priceFormat: { type: 'custom', formatter: (price) => formatPriceLabel(price, symbolRef.current) },
-      visible: showBollinger, ...NO_PRICE_LINE,
+      visible: bollingerVisible, ...NO_PRICE_LINE,
     });
     ser.current.bollingerMiddle = pc.addSeries(LineSeries, {
       color: '#2563eb', lineWidth: 1, crosshairMarkerVisible: false,
       priceFormat: { type: 'custom', formatter: (price) => formatPriceLabel(price, symbolRef.current) },
-      visible: showBollinger, ...NO_PRICE_LINE,
+      visible: bollingerVisible, ...NO_PRICE_LINE,
     });
     ser.current.bollingerLower = pc.addSeries(LineSeries, {
       color: '#2563eb', lineWidth: 1, lineStyle: 2, crosshairMarkerVisible: false,
       priceFormat: { type: 'custom', formatter: (price) => formatPriceLabel(price, symbolRef.current) },
-      visible: showBollinger, ...NO_PRICE_LINE,
+      visible: bollingerVisible, ...NO_PRICE_LINE,
     });
 
     ser.current.vol = vc.addSeries(HistogramSeries, {
@@ -2259,12 +2261,15 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
             <span className="legend-swatch" style={{ backgroundColor: MA_COLORS[i] }} />{p}
           </button>
         ))}
-        <span
-          className={`legend-btn bollinger-legend${showBollinger ? '' : ' muted'}`}
-          title="볼린저밴드: 20기간 이동평균 ± 2 표준편차. 헤더 BB 버튼으로 전체 차트 표시/숨김"
+        <button
+          type="button"
+          className={`legend-btn bollinger-legend${bollingerVisible ? '' : ' muted'}`}
+          aria-pressed={bollingerVisible}
+          onClick={toggleBollingerVisible}
+          title="볼린저밴드: 20기간 이동평균 ± 2 표준편차. 클릭하면 헤더 BB 상태와 관계없이 이 차트만 표시/숨김"
         >
           <span className="legend-swatch bollinger" aria-hidden="true" />볼린저밴드
-        </span>
+        </button>
       </div>
 
       {/* 차트 영역 */}
