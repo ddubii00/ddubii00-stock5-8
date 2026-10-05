@@ -202,7 +202,8 @@ html, body {
 }
 .symbol-name { font-size: 14px; font-weight: 600; color: var(--text); }
 .symbol-code { font-size: 11px; color: var(--muted); }
-.memo-toggle-btn { border: 1px solid #d1d5db; background: #fff; color: #475569; border-radius: 4px; padding: 1px 6px; font: 11px inherit; cursor: pointer; }
+.memo-toggle-btn, .attention-toggle-btn { border: 1px solid #d1d5db; background: #fff; color: #475569; border-radius: 4px; padding: 1px 6px; font: 11px inherit; cursor: pointer; }
+.attention-toggle-btn.active { background: #facc15; border-color: #eab308; color: #713f12; }
 .quote-chip {
   display: inline-flex;
   align-items: baseline;

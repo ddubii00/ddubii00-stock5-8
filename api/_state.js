@@ -40,6 +40,7 @@ function clean(value) {
         type: String(item.type || '').slice(0, 30),
         group: String(item.group || '3. 롱 관심').slice(0, 30),
         memo: String(item.memo || '').slice(0, 100),
+        attention: item.attention === true,
 
         memoPosition: {
           x: Math.max(
@@ -50,8 +51,8 @@ function clean(value) {
             0,
             Number(item.memoPosition?.y) || 58
           ),
-          ...(item.memoPosition?.anchor === 'symbol-right'
-            ? { anchor: 'symbol-right' }
+          ...(['symbol-right', 'copy-right'].includes(item.memoPosition?.anchor)
+            ? { anchor: item.memoPosition.anchor }
             : {}),
         },
 

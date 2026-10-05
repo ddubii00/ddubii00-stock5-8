@@ -13,6 +13,7 @@ import TrendLineOverlay from './TrendLineOverlay';
 import { apiUrl } from '../api';
 import { useChartTimeframe } from '../utils/chartTimeframe';
 import { MA_PERIODS, candleHistoryLimit } from '../utils/chartHistory';
+import { anchoredMemoPosition } from '../utils/memoPosition';
 
 const MAIN_TFS = [
   { label: '1분',  interval: '1m' },
@@ -972,7 +973,7 @@ const BASE_OPTS = {
   },
 };
 
-export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode = 'KRX', showBollinger = true, globalWeekly = false, memo = '', memoPosition = { anchor: 'symbol-right', x: 0, y: 38 }, memoSize = { width: 145, height: 78 }, onMemoChange, trendLines = {}, onTrendLinesChange }) {
+export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode = 'KRX', showBollinger = true, globalWeekly = false, attention = false, onAttentionChange, memo = '', memoPosition = { anchor: 'copy-right', x: 0, y: 38 }, memoSize = { width: 145, height: 78 }, onMemoChange, trendLines = {}, onTrendLinesChange }) {
   // ① localStorage로 마지막 선택 종목 복원
   const storageKey = `stock5_symbol_${id}`;
   const storedRaw   = localStorage.getItem(storageKey);
@@ -998,7 +999,7 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
   const [chartsReady, setChartsReady] = useState(false);
   const [advice, setAdvice] = useState({ tone: 'neutral', text: '차트 데이터를 불러오는 중…' });
   const [note, setNote] = useState(memo);
-  const [noteOpen, setNoteOpen] = useState(true);
+  const [noteOpen, setNoteOpen] = useState(() => Boolean(memo));
   const [notePos, setNotePos] = useState(memoPosition);
   const [noteSize, setNoteSize] = useState(memoSize);
   const [loadVersion, setLoadVersion] = useState(0);
@@ -1024,6 +1025,7 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
   // DOM refs
   const priceSectionRef = useRef(null);
   const symbolRowRef = useRef(null);
+  const copyButtonRef = useRef(null);
   const volumeSectionRef = useRef(null);
   const macdSectionRef = useRef(null);
   const ichiSectionRef = useRef(null);
@@ -1078,14 +1080,13 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
   });
   const normalizeNotePosition = (position, size) => {
     const bounds = noteBounds(size);
-    if (position?.anchor === 'symbol-right') {
+    if (['symbol-right', 'copy-right'].includes(position?.anchor)) {
       const card = chartColumnRef.current;
-      const row = symbolRowRef.current;
-      return {
-        anchor: 'symbol-right',
-        x: Math.max(0, (card?.clientWidth || size.width + 8) - size.width - 8),
-        y: card && row ? Math.max(0, row.getBoundingClientRect().top - card.getBoundingClientRect().top - 1) : 38,
-      };
+      const reference = position.anchor === 'copy-right' ? copyButtonRef.current : symbolRowRef.current;
+      const rect = card?.getBoundingClientRect();
+      return anchoredMemoPosition(position.anchor, size,
+        { left: rect?.left || 0, top: rect?.top || 0, width: card?.clientWidth || size.width + 8 },
+        reference?.getBoundingClientRect());
     }
     return {
       x: Math.min(bounds.maxX, Math.max(0, Number(position?.x) || 12)),
@@ -1128,23 +1129,21 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
     setNotePos(normalizeNotePosition(memoPosition, nextSize));
   }, [memoPosition?.x, memoPosition?.y, memoPosition?.anchor, memoSize?.width, memoSize?.height]);
 
-  // New notes follow the symbol row/right edge until manually dragged.
+  // Anchored notes follow their initial control until manually dragged.
   useEffect(() => {
-    if (notePos?.anchor !== 'symbol-right' || !chartColumnRef.current) return undefined;
+    if (!['symbol-right', 'copy-right'].includes(notePos?.anchor) || !chartColumnRef.current) return undefined;
     const card = chartColumnRef.current;
-    const row = symbolRowRef.current;
+    const reference = notePos.anchor === 'copy-right' ? copyButtonRef.current : symbolRowRef.current;
     const observer = new ResizeObserver(() => {
-      const next = {
-        anchor: 'symbol-right',
-        x: Math.max(0, card.clientWidth - noteSize.width - 8),
-        y: row ? Math.max(0, row.getBoundingClientRect().top - card.getBoundingClientRect().top - 1) : 38,
-      };
-      setNotePos((current) => current.x === next.x && current.y === next.y ? current : next);
+      const rect = card.getBoundingClientRect();
+      const next = anchoredMemoPosition(notePos.anchor, noteSize,
+        { left: rect.left, top: rect.top, width: card.clientWidth }, reference?.getBoundingClientRect());
+      setNotePos((current) => current.anchor !== notePos.anchor || (current.x === next.x && current.y === next.y) ? current : next);
     });
     observer.observe(card);
-    if (row) observer.observe(row);
+    if (reference) observer.observe(reference);
     return () => observer.disconnect();
-  }, [notePos?.anchor, noteSize.width, symbolName]);
+  }, [notePos?.anchor, noteSize, symbolName]);
 
   // ① 종목 선택 시 localStorage 저장
   const handleSelect = useCallback(({ symbol: sym, name }) => {
@@ -2190,6 +2189,9 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
             )}
             {loading && <span className="loading-dot">●</span>}
             <button type="button" className="memo-toggle-btn" onClick={openNote}>메모</button>
+            <button type="button" className={`attention-toggle-btn${attention ? ' active' : ''}`}
+              aria-pressed={attention} title="주의 표시 켜기/끄기 (서버 공유 저장)"
+              onClick={() => onAttentionChange?.(!attention)}>주의!</button>
           </div>
         )}
         {error && <div className="error-bar">{error}</div>}
@@ -2210,6 +2212,7 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
           <div className="period-group">
             <button
               type="button"
+              ref={copyButtonRef}
               className={`copy-chart-btn${copyStatus === 'copied' ? ' copied' : ''}${copyStatus === 'failed' ? ' failed' : ''}${copyStatus === 'https' ? ' https' : ''}`}
               onClick={handleCopyChartSet}
               disabled={copyStatus === 'copying' || !chartsReady}

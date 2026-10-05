@@ -10,7 +10,7 @@
   // Standalone test page: no real API, portfolio or credentials are used.
   let state = { mode: 'KRX', items: ['TEST1', 'TEST2'].map((symbol, i) => ({
     id: `weekly-control-test-${i}`, symbol, name: `검증 종목 ${i + 1}`, group: '1. 롱 보유', memo: '',
-    memoPosition: { anchor: 'symbol-right', x: 0, y: 38 }, memoSize: { width: 145, height: 78 }, trendLines: {},
+    memoPosition: { anchor: 'copy-right', x: 0, y: 38 }, memoSize: { width: 145, height: 78 }, attention: false, trendLines: {},
   })) };
   window.fetch = async (input, options = {}) => {
     const url = new URL(String(input), location.href);

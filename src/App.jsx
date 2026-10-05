@@ -104,8 +104,9 @@ function WatchlistModal({ state, onChange, onClose }) {
           id: crypto.randomUUID(),
           group,
           memo: '',
-          memoPosition: { anchor: 'symbol-right', x: 0, y: 38 },
+          memoPosition: { anchor: 'copy-right', x: 0, y: 38 },
           memoSize: { width: 145, height: 78 },
+          attention: false,
         },
       ],
     });
@@ -413,6 +414,13 @@ export default function App() {
                   marketMode={state.mode}
                   showBollinger={showBollinger}
                   globalWeekly={globalWeekly}
+                  attention={item.attention === true}
+                  onAttentionChange={(attention) => save({
+                    ...state,
+                    items: state.items.map((row) => (
+                      row.id === item.id ? { ...row, attention } : row
+                    )),
+                  })}
                   memo={item.memo}
                   memoPosition={item.memoPosition}
                   memoSize={item.memoSize}
