@@ -1,11 +1,12 @@
 import { fetchKoreanOhlcv, fetchUsOhlcv } from './_shared.js';
+import { MAX_CANDLE_HISTORY } from '../src/utils/chartHistory.js';
 
 export default async function handler(req, res) {
   try {
     const { symbol, interval = 'day', limit = 300, market = 'regular' } = req.query;
     if (!symbol) return res.status(400).json({ error: 'symbol required' });
 
-    const lim = Math.min(Number(limit) || 300, 2000);
+    const lim = Math.min(Number(limit) || 300, MAX_CANDLE_HISTORY);
     let data;
 
     const isKorean = /^\d{6}$/.test(symbol) || symbol.endsWith('.KS') || symbol.endsWith('.KQ');

@@ -23,7 +23,8 @@
     } else {
       const weekly = url.searchParams.get('interval') === 'week';
       await new Promise(resolve => setTimeout(resolve, weekly ? 25 : 150));
-      payload = Array.from({ length: 300 }, (_, i) => {
+      const count = Math.max(300, Number(url.searchParams.get('limit')) || 300);
+      payload = Array.from({ length: count }, (_, i) => {
         const close = 100 + i * .2 + Math.sin(i / 8) * 8;
         return {
           time: new Date(Date.UTC(weekly ? 2020 : 2025, 0, 1 + i * (weekly ? 7 : 1))).toISOString().slice(0, 10),

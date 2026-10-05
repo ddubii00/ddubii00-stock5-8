@@ -1,5 +1,6 @@
 import process from 'node:process';
 import YahooFinance from 'yahoo-finance2';
+import { candleHistoryLimit } from '../src/utils/chartHistory.js';
 
 export const yahooFinance = new YahooFinance();
 
@@ -10,7 +11,7 @@ const ohlcvCache = new Map();
 const weeklyOhlcvCache = new Map();
 const weeklyOhlcvInFlight = new Map();
 const WEEKLY_OHLCV_CACHE_TTL_MS = 30 * 60 * 1000;
-const WEEKLY_OHLCV_SOURCE_BARS = 300;
+const WEEKLY_OHLCV_SOURCE_BARS = candleHistoryLimit('week', 120);
 const koreanDailyHistoryCache = new Map();
 const koreanDailyHistoryInFlight = new Map();
 const koreanOhlcvLogAt = new Map();

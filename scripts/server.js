@@ -7,6 +7,7 @@ import WebSocket from 'ws';
 import YahooFinance from 'yahoo-finance2';
 import { analyzeCharts } from '../api/_analyze.js';
 import { authorized, loadState, saveState } from '../api/_state.js';
+import { MAX_CANDLE_HISTORY, candleHistoryLimit } from '../src/utils/chartHistory.js';
 
 dotenv.config({ path: '.env.local', quiet: true });
 dotenv.config({ quiet: true });
@@ -34,7 +35,7 @@ const ohlcvCache = new Map();
 const weeklyOhlcvCache = new Map();
 const weeklyOhlcvInFlight = new Map();
 const WEEKLY_OHLCV_CACHE_TTL_MS = 30 * 60 * 1000;
-const WEEKLY_OHLCV_SOURCE_BARS = 300;
+const WEEKLY_OHLCV_SOURCE_BARS = candleHistoryLimit('week', 120);
 const koreanDailyHistoryCache = new Map();
 const koreanDailyHistoryInFlight = new Map();
 const koreanOhlcvLogAt = new Map();
@@ -1325,7 +1326,7 @@ app.get('/api/ohlcv', async (req, res) => {
   try {
     const { symbol, interval = 'day', limit = 300, market = 'regular' } = req.query;
     if (!symbol) return res.status(400).json({ error: 'symbol required' });
-    const lim = Math.min(Number(limit) || 300, 2000);
+    const lim = Math.min(Number(limit) || 300, MAX_CANDLE_HISTORY);
     let data;
     const isKorean = /^\d{6}$/.test(symbol) || symbol.endsWith('.KS') || symbol.endsWith('.KQ');
     const isIndex = symbol.startsWith('^');

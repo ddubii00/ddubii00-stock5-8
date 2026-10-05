@@ -12,6 +12,7 @@ import StockSearch from './StockSearch';
 import TrendLineOverlay from './TrendLineOverlay';
 import { apiUrl } from '../api';
 import { useChartTimeframe } from '../utils/chartTimeframe';
+import { MA_PERIODS, candleHistoryLimit } from '../utils/chartHistory';
 
 const MAIN_TFS = [
   { label: '1분',  interval: '1m' },
@@ -38,7 +39,6 @@ const ICHI_TFS = [
 ];
 const DEFAULT_ICHI_TF = ICHI_TFS.find(tf => tf.interval === 'day') || ICHI_TFS[0];
 
-const MA_PERIODS = [5, 10, 20, 60, 120, 200];
 const MA_COLORS  = ['#f59e0b', '#22c55e', '#a855f7', '#06b6d4', '#64748b', '#92400e'];
 const INTRA_INTERVALS = ['1m','3m','5m','15m','30m','60m'];
 const PRICE_SCALE_WIDTH = 92;
@@ -56,13 +56,7 @@ function isIntradayTf(tf) {
 }
 
 function requestLimit(tf, baseLimit) {
-  if (isIntradayTf(tf)) {
-    return Math.min(Math.max(baseLimit + 120, 300), 800);
-  }
-  if (tf?.interval === 'week' || tf?.interval === 'month') {
-    return Math.min(Math.max(baseLimit + 80, 240), 300);
-  }
-  return Math.min(Math.max(baseLimit + 180, 300), 600);
+  return candleHistoryLimit(tf?.interval, baseLimit);
 }
 
 function ichimokuRequestLimit(tf, baseLimit) {
