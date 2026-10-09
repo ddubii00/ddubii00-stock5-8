@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createFundamentalsLoader, normalizeNaverFundamentals, normalizeYahooFundamentals } from '../api/_fundamentals.js';
-import { formatRatio, formatFundamentalAmount } from '../src/utils/fundamentalFormat.js';
+import { estimatedFundamentalLabel, formatRatio, formatFundamentalAmount } from '../src/utils/fundamentalFormat.js';
 
 const integration = { totalInfos: [
   { code: 'per', value: '11.80배', valueDesc: '2026.06.' },
@@ -22,6 +22,18 @@ const annual = { financeInfo: {
     { title: '영업이익', columns: { '202512': { value: '436,011' } } },
   ],
 } };
+
+test('only available estimated metrics get an asterisk', () => {
+  assert.equal(estimatedFundamentalLabel('F.PER', 5.77), 'F.PER*');
+  assert.equal(estimatedFundamentalLabel('F.ROE', 53.49), 'F.ROE*');
+  assert.equal(estimatedFundamentalLabel('PEG', .02), 'PEG*');
+  assert.equal(estimatedFundamentalLabel('F.PER', 0), 'F.PER*');
+  for (const value of [null, undefined, NaN, Infinity]) {
+    assert.equal(estimatedFundamentalLabel('F.PER', value), 'F.PER');
+    assert.equal(estimatedFundamentalLabel('F.ROE', value), 'F.ROE');
+    assert.equal(estimatedFundamentalLabel('PEG', value), 'PEG');
+  }
+});
 
 test('Korean metrics use actual and forecast periods, and correct won units', () => {
   const data = normalizeNaverFundamentals('005930.KS', integration, annual);

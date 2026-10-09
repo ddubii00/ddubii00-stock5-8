@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { apiUrl } from '../api';
-import { formatFundamentalAmount, formatRatio } from '../utils/fundamentalFormat';
+import { estimatedFundamentalLabel, formatFundamentalAmount, formatRatio } from '../utils/fundamentalFormat';
 
 export default function FundamentalsStrip({ symbol }) {
   const [result, setResult] = useState(null);
@@ -31,11 +31,11 @@ export default function FundamentalsStrip({ symbol }) {
   const forecast = `연간 예상치${data.forecastPeriod ? ` (${data.forecastPeriod})` : ''}`;
   const items = [
     ['PER', formatRatio(data.per), `최근 실적 기준${data.valuationPeriod ? ` (${data.valuationPeriod})` : ''}`],
-    ['F.PER', formatRatio(data.forwardPer), forecast],
+    [estimatedFundamentalLabel('F.PER', data.forwardPer), formatRatio(data.forwardPer), forecast],
     ['ROE', formatRatio(data.roe, '%'), data.source === 'yahoo' ? '최근 12개월 ROE' : annual],
-    ['F.ROE', formatRatio(data.forwardRoe, '%'), forecast],
+    [estimatedFundamentalLabel('F.ROE', data.forwardRoe), formatRatio(data.forwardRoe, '%'), forecast],
     ['PBR', formatRatio(data.pbr), '주가순자산비율'],
-    ['PEG*', formatRatio(data.peg), data.pegBasis || '예상 EPS 증가율 기반 추정 PEG (미제공 시 —)'],
+    [estimatedFundamentalLabel('PEG', data.peg), formatRatio(data.peg), data.pegBasis || '예상 EPS 증가율 기반 추정 PEG (미제공 시 —)'],
     ['시총', formatFundamentalAmount(data.marketCap, data.currency), '데이터 제공처 시가총액'],
     ['매출', formatFundamentalAmount(data.revenue, data.financialCurrency), annual],
     ['영업이익', formatFundamentalAmount(data.operatingIncome, data.financialCurrency), annual],

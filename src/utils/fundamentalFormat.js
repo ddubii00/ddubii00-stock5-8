@@ -1,3 +1,7 @@
+export function estimatedFundamentalLabel(label, value) {
+  return typeof value === 'number' && Number.isFinite(value) ? `${label}*` : label;
+}
+
 export function formatRatio(value, suffix = '') {
   return typeof value === 'number' && Number.isFinite(value)
     ? `${value.toLocaleString('ko-KR', { maximumFractionDigits: 2 })}${suffix}` : '—';
