@@ -15,6 +15,7 @@ import { useChartTimeframe } from '../utils/chartTimeframe';
 import { MA_PERIODS, candleHistoryLimit } from '../utils/chartHistory';
 import { anchoredMemoPosition } from '../utils/memoPosition';
 import { useChartVisibility } from '../utils/chartVisibility';
+import FundamentalsStrip from './FundamentalsStrip';
 
 const MAIN_TFS = [
   { label: '1분',  interval: '1m' },
@@ -2271,6 +2272,8 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
           <span className="legend-swatch bollinger" aria-hidden="true" />볼린저밴드
         </button>
       </div>
+
+      <FundamentalsStrip symbol={symbol} />
 
       {/* 차트 영역 */}
       <div className="charts-area">

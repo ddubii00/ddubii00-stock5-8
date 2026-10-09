@@ -18,6 +18,11 @@
     if (url.pathname.endsWith('/state')) {
       if (options.method === 'PUT') state = JSON.parse(options.body);
       payload = state;
+    } else if (url.pathname.endsWith('/fundamentals')) {
+      payload = { symbol: url.searchParams.get('symbol'), source: 'naver', currency: 'KRW', financialCurrency: 'KRW',
+        per: 11.8, forwardPer: 5.77, roe: 10.85, forwardRoe: 53.49, pbr: 3.06, peg: .02,
+        marketCap: 15375713e8, revenue: 3336059e8, operatingIncome: 436011e8,
+        fiscalPeriod: '2025.12.', forecastPeriod: '2026.12.' };
     } else if (url.pathname.endsWith('/quote')) {
       payload = { symbol: url.searchParams.get('symbol'), price: 160, change: 1, changePct: .63 };
     } else {

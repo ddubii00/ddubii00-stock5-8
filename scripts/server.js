@@ -8,11 +8,13 @@ import YahooFinance from 'yahoo-finance2';
 import { analyzeCharts } from '../api/_analyze.js';
 import { authorized, loadState, saveState } from '../api/_state.js';
 import { MAX_CANDLE_HISTORY, candleHistoryLimit } from '../src/utils/chartHistory.js';
+import { createFundamentalsLoader } from '../api/_fundamentals.js';
 
 dotenv.config({ path: '.env.local', quiet: true });
 dotenv.config({ quiet: true });
 
 const yahooFinance = new YahooFinance();
+const loadFundamentals = createFundamentalsLoader({ yahooFinance });
 const app = express();
 const PORT = process.env.PORT || 3001;
 
@@ -1343,6 +1345,15 @@ app.get('/api/ohlcv', async (req, res) => {
   } catch (e) {
     console.error(`OHLCV error [${req.query.symbol}]:`, e.message);
     return res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/fundamentals', async (req, res) => {
+  if (!req.query.symbol) return res.status(400).json({ error: 'symbol required' });
+  try {
+    return res.json(await loadFundamentals(req.query.symbol));
+  } catch {
+    return res.status(400).json({ error: 'invalid symbol' });
   }
 });
 
