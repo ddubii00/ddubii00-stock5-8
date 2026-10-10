@@ -41,6 +41,7 @@ function clean(value) {
         group: String(item.group || '3. 롱 관심').slice(0, 30),
         memo: String(item.memo || '').slice(0, 100),
         attention: item.attention === true,
+        prepared: item.prepared === true,
 
         memoPosition: {
           x: Math.max(

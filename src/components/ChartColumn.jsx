@@ -976,7 +976,7 @@ const BASE_OPTS = {
   },
 };
 
-export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode = 'KRX', showBollinger = true, showLineBreak = false, globalWeekly = false, attention = false, onAttentionChange, memo = '', memoPosition = { anchor: 'copy-right', x: 0, y: 38 }, memoSize = { width: 145, height: 78 }, onMemoChange, trendLines = {}, onTrendLinesChange }) {
+export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode = 'KRX', showBollinger = true, showLineBreak = false, globalWeekly = false, prepared = false, onPreparedChange, attention = false, onAttentionChange, memo = '', memoPosition = { anchor: 'copy-right', x: 0, y: 38 }, memoSize = { width: 145, height: 78 }, onMemoChange, trendLines = {}, onTrendLinesChange }) {
   // ① localStorage로 마지막 선택 종목 복원
   const storageKey = `stock5_symbol_${id}`;
   const storedRaw   = localStorage.getItem(storageKey);
@@ -2200,6 +2200,9 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
             )}
             {loading && <span className="loading-dot">●</span>}
             <button type="button" className="memo-toggle-btn" onClick={openNote}>메모</button>
+            <button type="button" className={`prepared-toggle-btn${prepared ? ' active' : ''}`}
+              aria-pressed={prepared} title="준비 표시 켜기/끄기 (서버 공유 저장)"
+              onClick={() => onPreparedChange?.(!prepared)}>준비!</button>
             <button type="button" className={`attention-toggle-btn${attention ? ' active' : ''}`}
               aria-pressed={attention} title="주의 표시 켜기/끄기 (서버 공유 저장)"
               onClick={() => onAttentionChange?.(!attention)}>주의!</button>

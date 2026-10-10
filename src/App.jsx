@@ -107,6 +107,7 @@ function WatchlistModal({ state, onChange, onClose }) {
           memoPosition: { anchor: 'copy-right', x: 0, y: 38 },
           memoSize: { width: 145, height: 78 },
           attention: false,
+          prepared: false,
         },
       ],
     });
@@ -425,6 +426,13 @@ export default function App() {
                   showBollinger={showBollinger}
                   showLineBreak={showLineBreak}
                   globalWeekly={globalWeekly}
+                  prepared={item.prepared === true}
+                  onPreparedChange={(prepared) => save({
+                    ...state,
+                    items: state.items.map((row) => (
+                      row.id === item.id ? { ...row, prepared } : row
+                    )),
+                  })}
                   attention={item.attention === true}
                   onAttentionChange={(attention) => save({
                     ...state,
