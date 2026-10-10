@@ -46,7 +46,7 @@ export function cleanTrendLines(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
   const result = {};
   for (const [key, lines] of Object.entries(value).slice(0, 90)) {
-    if (!/^.{1,30}:(1m|3m|5m|15m|30m|60m|day|week|month)$/.test(key) || !Array.isArray(lines)) continue;
+    if (!/^.{1,30}:(1m|3m|5m|15m|30m|60m|day|week|month)(:line-break)?$/.test(key) || !Array.isArray(lines)) continue;
     result[key] = lines.slice(0, 100).flatMap((line) => {
       if (!line?.id || ![line.start?.time, line.start?.price, line.end?.time, line.end?.price].every(Number.isFinite)) return [];
       return [{

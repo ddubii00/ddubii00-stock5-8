@@ -281,6 +281,7 @@ export default function App() {
   const [marketSummary, setMarketSummary] = useState({});
   const [showBollinger, setShowBollinger] = useState(true);
   const [globalWeekly, setGlobalWeekly] = useState(false);
+  const [showLineBreak, setShowLineBreak] = useState(false);
 
   const clearAuthentication = useCallback(() => {
     localStorage.removeItem(PASSWORD_STORAGE_KEY);
@@ -376,6 +377,15 @@ export default function App() {
           </button>
           <button
             type="button"
+            className={showLineBreak ? 'active' : ''}
+            aria-pressed={showLineBreak}
+            onClick={() => setShowLineBreak(enabled => !enabled)}
+            title="전체 메인 차트 삼선전환도 표시/해제 (일목균형표 유지)"
+          >
+            삼선
+          </button>
+          <button
+            type="button"
             className={globalWeekly ? 'active' : ''}
             aria-pressed={globalWeekly}
             onClick={() => setGlobalWeekly((enabled) => !enabled)}
@@ -413,6 +423,7 @@ export default function App() {
                   defaultName={item.name}
                   marketMode={state.mode}
                   showBollinger={showBollinger}
+                  showLineBreak={showLineBreak}
                   globalWeekly={globalWeekly}
                   attention={item.attention === true}
                   onAttentionChange={(attention) => save({

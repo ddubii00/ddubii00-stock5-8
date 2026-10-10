@@ -183,6 +183,7 @@ html, body {
 .chart-column:hover {
   box-shadow: 0 3px 12px rgba(0,0,0,0.12);
 }
+.macd-blank { background: var(--panel2); }
 
 /* ── COLUMN HEADER ── */
 .column-header {

@@ -16,6 +16,7 @@ import { MA_PERIODS, candleHistoryLimit } from '../utils/chartHistory';
 import { anchoredMemoPosition } from '../utils/memoPosition';
 import { useChartVisibility } from '../utils/chartVisibility';
 import FundamentalsStrip from './FundamentalsStrip';
+import { calculateThreeLineBreak } from '../utils/threeLineBreak';
 
 const MAIN_TFS = [
   { label: '1분',  interval: '1m' },
@@ -250,7 +251,7 @@ function drawLabel(ctx, text, scale) {
   ctx.fillText(text, x + paddingX, y + height - paddingY - 3 * scale);
 }
 
-async function captureChartSection(section, label) {
+async function captureChartSection(section, label, blank = false) {
   if (!section) throw new Error(`${label} 영역을 찾을 수 없습니다.`);
   await new Promise(resolve => requestAnimationFrame(resolve));
 
@@ -265,7 +266,7 @@ async function captureChartSection(section, label) {
   ctx.fillStyle = '#f7f9fc';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  [...section.querySelectorAll('canvas')].forEach(source => {
+  [...(blank ? [] : section.querySelectorAll('canvas'))].forEach(source => {
     const sourceRect = source.getBoundingClientRect();
     if (!sourceRect.width || !sourceRect.height) return;
     ctx.drawImage(
@@ -277,7 +278,7 @@ async function captureChartSection(section, label) {
     );
   });
 
-  drawLabel(ctx, section.querySelector('.chart-label')?.textContent?.trim() || label, scale);
+  if (!blank) drawLabel(ctx, section.querySelector('.chart-label')?.textContent?.trim() || label, scale);
   return { label, dataUrl: canvas.toDataURL('image/png') };
 }
 
@@ -726,7 +727,7 @@ function normalizeCandleData(arr) {
       high: Number(d.high),
       low: Number(d.low),
       close: Number(d.close),
-      volume: Number.isFinite(+d.volume) ? +d.volume : null,
+      volume: d.volume != null && Number.isFinite(+d.volume) ? +d.volume : null,
     }))
     .sort((a, b) => (a.time > b.time ? 1 : a.time < b.time ? -1 : 0));
 
@@ -975,7 +976,7 @@ const BASE_OPTS = {
   },
 };
 
-export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode = 'KRX', showBollinger = true, globalWeekly = false, attention = false, onAttentionChange, memo = '', memoPosition = { anchor: 'copy-right', x: 0, y: 38 }, memoSize = { width: 145, height: 78 }, onMemoChange, trendLines = {}, onTrendLinesChange }) {
+export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode = 'KRX', showBollinger = true, showLineBreak = false, globalWeekly = false, attention = false, onAttentionChange, memo = '', memoPosition = { anchor: 'copy-right', x: 0, y: 38 }, memoSize = { width: 145, height: 78 }, onMemoChange, trendLines = {}, onTrendLinesChange }) {
   // ① localStorage로 마지막 선택 종목 복원
   const storageKey = `stock5_symbol_${id}`;
   const storedRaw   = localStorage.getItem(storageKey);
@@ -1046,6 +1047,8 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
   const maMaps      = useRef([]);
   const macdDataRef = useRef([]);   // ③ MACD 데이터 저장
   const mainCandlesRef = useRef([]);
+  const mainSourceRef = useRef(null);
+  const lineBreakModeRef = useRef(showLineBreak);
   const mainVolumeRef = useRef([]);
   const crosshairValueMapsRef = useRef({ candle: new Map(), volume: new Map(), macd: new Map() });
   const ichiValueMapsRef = useRef({
@@ -1200,7 +1203,12 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
     const container = priceRef.current;
     const macdChart = charts.current.macd;
     const macdData  = macdDataRef.current;
-    if (!container || !macdChart || !macdData.length) return;
+    if (!macdData.length) {
+      bgCanvasRef.current?.remove();
+      bgCanvasRef.current = null;
+      return;
+    }
+    if (!container || !macdChart) return;
 
     if (!bgCanvasRef.current) {
       const canvas = document.createElement('canvas');
@@ -1695,56 +1703,39 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
   }, [marketMode]);
 
   // ─── 메인 3개 차트 데이터 로드 ───────────────────────
-  const fetchMain = useCallback(async (sym, tf, lim, { followLatest = false } = {}) => {
+  const fetchMain = useCallback(async (sym, tf, lim, { followLatest = false, cachedCandles = null } = {}) => {
     if (!sym || !ser.current.candle) return;
     const requestSeq = mainRequestSeqRef.current;
-    const viewKey = `${sym}:${tf.interval}:${lim}`;
-    const market = marketMode === 'KRX2' && isKoreanSymbol(sym) && isIntradayTf(tf) ? '&market=after' : '';
-    const r    = await fetch(apiUrl(`/ohlcv?symbol=${encodeURIComponent(sym)}&interval=${tf.interval}&limit=${requestLimit(tf, lim)}${market}`));
-    if (requestSeq !== mainRequestSeqRef.current) return;
-    const contentType = r.headers.get('content-type') || '';
-    if (!r.ok) {
-      const body = contentType.includes('application/json') ? await r.json().catch(() => null) : await r.text();
-      throw new Error(body?.error || body || `시세 조회 실패 (${r.status})`);
-    }
-    if (!contentType.includes('application/json')) {
-      throw new Error('시세 API가 JSON 대신 HTML을 반환했습니다. 배포 API 연결을 확인하세요.');
-    }
-    const data = await r.json();
-    if (!Array.isArray(data) || !data.length) {
-      throw new Error(`${tf.label} 데이터가 비어 있습니다.`);
-    }
+    let candles = cachedCandles;
+    if (!cachedCandles) {
+      const market = marketMode === 'KRX2' && isKoreanSymbol(sym) && isIntradayTf(tf) ? '&market=after' : '';
+      const r = await fetch(apiUrl(`/ohlcv?symbol=${encodeURIComponent(sym)}&interval=${tf.interval}&limit=${requestLimit(tf, lim)}${market}`));
+      if (requestSeq !== mainRequestSeqRef.current) return;
+      const contentType = r.headers.get('content-type') || '';
+      if (!r.ok) {
+        const body = contentType.includes('application/json') ? await r.json().catch(() => null) : await r.text();
+        throw new Error(body?.error || body || `시세 조회 실패 (${r.status})`);
+      }
+      if (!contentType.includes('application/json')) {
+        throw new Error('시세 API가 JSON 대신 HTML을 반환했습니다. 배포 API 연결을 확인하세요.');
+      }
+      const data = await r.json();
+      if (!Array.isArray(data) || !data.length) throw new Error(`${tf.label} 데이터가 비어 있습니다.`);
 
-    // ② null 값 필터링
-    let candles = normalizeCandleData(data);
-    if (!candles.length) throw new Error('시세 데이터가 비어 있습니다.');
+      // ② null 값 필터링
+      candles = normalizeCandleData(data);
+      if (!candles.length) throw new Error('시세 데이터가 비어 있습니다.');
 
-    if (isKoreanSymbol(sym) && tf?.interval === 'day') {
-      try {
-        const quoteMarket =
-          marketMode === 'KRX2'
-            ? '&market=after'
-            : '';
-
-        const currentResponse = await fetch(
-          apiUrl(
-            `/quote?symbol=${encodeURIComponent(sym)}${quoteMarket}`
-          )
-        );
-
-        if (currentResponse.ok) {
-          const currentQuote =
-            await currentResponse.json();
-
-          candles = overlayCurrentDailyCandle(
-            candles,
-            currentQuote,
-            sym,
-            tf
-          );
+      if (isKoreanSymbol(sym) && tf?.interval === 'day') {
+        try {
+          const quoteMarket = marketMode === 'KRX2' ? '&market=after' : '';
+          const currentResponse = await fetch(apiUrl(`/quote?symbol=${encodeURIComponent(sym)}${quoteMarket}`));
+          if (currentResponse.ok) {
+            candles = overlayCurrentDailyCandle(candles, await currentResponse.json(), sym, tf);
+          }
+        } catch {
+          // 현재가 조회 실패 시 기존 OHLCV 유지
         }
-      } catch {
-        // 현재가 조회 실패 시 기존 OHLCV 유지
       }
     }
     // A previous timeframe request must not shift the new timeframe's lines.
@@ -1752,7 +1743,7 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
     const now = Date.now();
     const symbolChanged = adviceDailySymbolRef.current !== sym;
     const shouldRefreshAdvice = symbolChanged || now >= adviceNextReviewAtRef.current;
-    if (shouldRefreshAdvice) {
+    if (!cachedCandles && shouldRefreshAdvice) {
       adviceDailySymbolRef.current = sym;
       adviceNextReviewAtRef.current = now + ADVICE_REVIEW_INTERVAL_MS;
       if (symbolChanged) setAdvice({ tone: 'neutral', text: '부분매매 신호 계산 중…' });
@@ -1760,6 +1751,12 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
         if (adviceDailySymbolRef.current === sym) setAdvice(nextAdvice);
       });
     }
+    mainSourceRef.current = { candles, symbol: sym, tf, limit: lim, marketMode };
+    const lineBreak = lineBreakModeRef.current;
+    const viewKey = `${sym}:${tf.interval}:${lim}:${lineBreak ? 'line-break' : 'candle'}`;
+    if (lineBreak) candles = calculateThreeLineBreak(candles);
+    ser.current.candle.applyOptions({ wickVisible: !lineBreak });
+    if (tooltipRef.current) tooltipRef.current.style.display = 'none';
     crosshairValueMapsRef.current = { candle: new Map(), volume: new Map(), macd: new Map() };
     mainCandlesRef.current = candles;
     ser.current.candle.setData(candles);
@@ -1779,7 +1776,7 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
     // 거래량
     const volData = candles
       .map((d, i) => {
-        const currentVolume = +d.volume;
+        const currentVolume = d.volume == null ? NaN : +d.volume;
         const previousVolume = candles[i - 1]?.volume;
         if (!Number.isFinite(currentVolume)) return { time: d.time };
         return {
@@ -1793,7 +1790,8 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
     crosshairValueMapsRef.current.volume = new Map(volData.filter(d => Number.isFinite(d.value)).map(d => [timeKey(d.time), d.value]));
 
     // MACD
-    const macd = calculateMACD(candles);
+    // Synthetic, irregular-duration lines are not regular-time MACD inputs.
+    const macd = lineBreak ? [] : calculateMACD(candles);
     macdDataRef.current = macd;
     const macdHistData = macd.map(d => (
       Number.isFinite(d.histogram)
@@ -1817,6 +1815,7 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
 
     // ③ MACD 배경 그리기 (약간 지연 → 차트 렌더 후)
     requestAnimationFrame(() => {
+      if (requestSeq !== mainRequestSeqRef.current || lineBreak !== lineBreakModeRef.current) return;
       if (mainViewKeyRef.current !== viewKey || followLatest) {
         const visibleBars = Math.min(lim, candles.length);
         const range = {
@@ -1832,6 +1831,14 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
       priceRef.current?.dispatchEvent(new Event('trend-data'));
     });
   }, [drawMacdBackground, marketMode]);
+
+  useEffect(() => {
+    lineBreakModeRef.current = showLineBreak;
+    const source = mainSourceRef.current;
+    if (source?.symbol === symbol && source.tf.interval === mainTf.interval && source.limit === limit && source.marketMode === marketMode) {
+      void fetchMain(symbol, mainTf, limit, { cachedCandles: source.candles }).catch(() => {});
+    }
+  }, [showLineBreak, symbol, mainTf, limit, marketMode, fetchMain]);
 
   const fetchIchi = useCallback(async (sym, tf, lim, { signal, requestSeq } = {}) => {
     if (!sym || !ser.current.ichiCandle) return;
@@ -2109,9 +2116,9 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
   };
 
   const captureChartSet = async () => Promise.all([
-    captureChartSection(priceSectionRef.current, '캔들차트'),
+    captureChartSection(priceSectionRef.current, showLineBreak ? '삼선전환도' : '캔들차트'),
     captureChartSection(volumeSectionRef.current, '거래량차트'),
-    captureChartSection(macdSectionRef.current, 'MACD'),
+    captureChartSection(macdSectionRef.current, 'MACD', showLineBreak),
     captureChartSection(ichiSectionRef.current, '일목균형표'),
   ]);
 
@@ -2169,6 +2176,7 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
   };
 
   // ─── Render ──────────────────────────────────────────
+  const trendKey = `${symbol}:${mainTf.interval}${showLineBreak ? ':line-break' : ''}`;
   return (
     <div ref={chartColumnRef} className={`chart-column ${marketMode === 'KRX2' ? 'after-hours-mode' : ''}`}>
       {/* Header */}
@@ -2249,7 +2257,7 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
           className={`legend-btn${mainVisible.candle ? '' : ' muted'}`}
           onClick={() => toggleMainVisible('candle')}
         >
-          <span className="legend-swatch candle" />캔들
+          <span className="legend-swatch candle" />{showLineBreak ? '삼선' : '캔들'}
         </button>
         {MA_PERIODS.map((p, i) => (
           <button
@@ -2279,14 +2287,14 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
       <div className="charts-area">
         <div className={`signal-advice ${advice.tone}`}>{advice.text}</div>
         <div ref={priceSectionRef} className="chart-section" style={{ position: 'relative' }}>
-          <div className="chart-label">캔들차트</div>
+          <div className="chart-label" title={showLineBreak ? '종가 기준 3선 전환. 이동평균과 BB는 전환선 기준으로 계산합니다. 최근 봉은 갱신될 수 있습니다.' : undefined}>{showLineBreak ? '삼선전환도 (3)' : '캔들차트'}</div>
           <div ref={priceRef} />
           <TrendLineOverlay
-            key={`${symbol}:${mainTf.interval}:${marketMode}`}
+            key={`${trendKey}:${marketMode}`}
             chartsRef={charts} seriesRef={ser} candlesRef={mainCandlesRef}
             containerRef={priceRef} ready={chartsReady && !loading}
-            lines={trendLines[`${symbol}:${mainTf.interval}`] || []}
-            onChange={(lines) => onTrendLinesChange?.({ ...trendLines, [`${symbol}:${mainTf.interval}`]: lines })}
+            lines={trendLines[trendKey] || []}
+            onChange={(lines) => onTrendLinesChange?.({ ...trendLines, [trendKey]: lines })}
           />
           {/* ③ MACD 배경 캔버스는 priceRef 안에 동적 삽입 */}
           {/* ⑤⑨ OHLC + MA 팝업 */}
@@ -2294,13 +2302,13 @@ export default function ChartColumn({ id, defaultSymbol, defaultName, marketMode
         </div>
 
         <div ref={volumeSectionRef} className="chart-section">
-          <div className="chart-label">거래량</div>
+          <div className="chart-label" title={showLineBreak ? '각 전환선 생성까지 원본 봉 거래량을 합산. 미확정 거래량은 다음 전환선에 포함합니다.' : undefined}>{showLineBreak ? '거래량 (전환선별 누적)' : '거래량'}</div>
           <div ref={volumeRef} />
         </div>
 
-        <div ref={macdSectionRef} className="chart-section">
-          <div className="chart-label">MACD (12, 26, 9)</div>
-          <div ref={macdRef} />
+        <div ref={macdSectionRef} className={`chart-section${showLineBreak ? ' macd-blank' : ''}`} aria-label={showLineBreak ? 'MACD 빈 영역' : undefined}>
+          {!showLineBreak && <div className="chart-label">MACD (12, 26, 9)</div>}
+          <div ref={macdRef} style={showLineBreak ? { visibility: 'hidden', pointerEvents: 'none' } : undefined} />
         </div>
 
         {/* ⑥ 두 세트 사이 구분선 */}
